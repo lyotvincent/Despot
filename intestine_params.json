@@ -1,0 +1,26 @@
+{
+  "working_dir": "/home/rzh/PycharmProjects/spatial",
+  "pythonPath": "~/anaconda3/envs/spatial/bin/python",
+  "dataPath": "data/intestine/colon_d0",
+  "imgPath": "spatial",
+  "tempdir": "h5ads",
+  "TabulaType": "FACS",
+  "TabulaData": "Large_Intestine",
+  "dataSpices": "Mouse",
+  "R_Scripts_Path": "R_utils",
+  "R_library_Path": "sptranr/R",
+  "name": "colon_d0",
+  "filter_matrix": true,
+  "sptFile": "h5ads/colon_d0.h5spt",
+  "ground_truth": "cluster_labels.csv",
+  "load_lowres": true,
+  "load_hires": true,
+  "load_fullres": false,
+  "fullres_path": "tissue_fullres_image.tif",
+  "Decontamination": ["none", "SPCS", "SpotClean"],
+  "Clustering": ["BayesSpace"],
+  "Estimation": ["SPARK"],
+  "Deconvolution": "stereoScope",
+  "Enhancement": "BayesSpace"
+}
+
