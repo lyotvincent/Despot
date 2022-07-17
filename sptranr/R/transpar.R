@@ -74,15 +74,15 @@ Save_10X_to_spt <- function(dir, sptFile, filtered.matrix = T, name = "",
   }
   else{
     h5dir <- ifelse(filtered.matrix,
-                    "/filtered_feature_bc_matrix/",
-                    "/raw_feature_bc_matrix/")
+                    "/filtered_feature_bc_matrix",
+                    "/raw_feature_bc_matrix")
     h5dir <- paste0(dir, h5dir)
     if(file.exists(h5dir)){
       h5_obj <- list()
-      h5_obj$barcodes <- fread(paste0(h5dir, "barcodes.tsv.gz"), header = F)[[1]]
-      h5_obj$features <- fread(paste0(h5dir, "features.tsv.gz"), header = F)
-      colnames(h5_obj$features) <- "names"
-      mtx <- Matrix::readMM(paste0(h5dir, "matrix.mtx.gz"))
+      h5_obj$barcodes <- fread(paste0(h5dir, "/barcodes.tsv.gz"), header = F)[[1]]
+      h5_obj$features <- fread(paste0(h5dir, "/features.tsv.gz"), header = F)
+      colnames(h5_obj$features) <- "name"
+      mtx <- Matrix::readMM(paste0(h5dir, "/matrix.mtx.gz"))
       mtx <- as(mtx, "dgCMatrix")
       mtx@Dimnames[[1]] <- h5_obj$features$names
       mtx@Dimnames[[2]] <- h5_obj$barcodes
@@ -689,6 +689,33 @@ Load_10Xsc_to_SCE <- function(tenXdir){
   sce <- SingleCellExperiment(assays = list(counts = sce),
                              rowData = DataFrame(gene_name = gene_name),
                              colData = DataFrame(barcodes = colnames(sce)))
+  return(sce)
+}
+
+# Load scRNA-seq data by the users' definition
+Load_sc_to_SCE <- function(scbar, scfea, scmat, scgth = NA, scgnm = NA){
+  bar <- fread(scbar, header = F)[[1]]
+  fea <- fread(scfea, header = F)[[1]]
+  library(stringr)
+  fea <- str_to_upper(fea)
+  mat <- readMM(scmat)
+  mat <- as(mat, "dgCMatrix")
+  rownames(mat) <- fea
+  colnames(mat) <- bar
+  if(is.na(scgth)){
+    sce <- SingleCellExperiment(assays = list(counts = mat),
+                                rowData = DataFrame(gene_name = fea),
+                                colData = DataFrame(barcodes = bar))
+  }
+  else{
+    gth <- fread(scgth, header = T)
+    gth <- gth[[scgnm]]
+    sce <- SingleCellExperiment(assays = list(counts = mat),
+                                rowData = DataFrame(gene_name = fea),
+                                colData = DataFrame(barcodes = bar,
+                                                    free_annotation = gth))
+    colLabels(sce) <- gth
+  }
   return(sce)
 }
 

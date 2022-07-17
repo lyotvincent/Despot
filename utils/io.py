@@ -59,11 +59,13 @@ def Load_spt_to_AnnData(sptFile: str,
         h5fea = np.array(h5dat['features']['name'][:], dtype='str')
         var = pd.DataFrame({'gene_name': h5fea}, index=h5fea)
     else:
-        var = pd.DataFrame({'gene_ids': np.array(features["id"][:], dtype='str'),
-                            'feature_types': np.array(features['feature_type'][:], dtype='str'),
-                            'genome': np.array(features['genome'][:], dtype='str'),
-                            'gene_name': np.array(features['name'][:], dtype='str')})
-        var.index = var['gene_ids']
+        # var = pd.DataFrame({'gene_ids': np.array(features["id"][:], dtype='str'),
+        #                     'feature_types': np.array(features['feature_type'][:], dtype='str'),
+        #                     'genome': np.array(features['genome'][:], dtype='str'),
+        #                     'gene_name': np.array(features['name'][:], dtype='str')})
+        # var.index = var['gene_ids']
+        h5fea = np.array(h5dat['features']['name'][:], dtype='str')
+        var = pd.DataFrame({'gene_name': h5fea}, index=h5fea)
     name = str(h5_obj["name"][0], encoding='utf8')
 
     adata = ad.AnnData(X, obs=obs, var=var)

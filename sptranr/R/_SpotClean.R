@@ -1,12 +1,12 @@
 library(SpotClean)
 library(rhdf5)
 
-Load_10Xh5_to_SpotClean <- function(tenXdir, sptFile){
-  raw_path_h5 <- paste0(tenXdir, "/raw_feature_bc_matrix.h5")
-  raw_path <- paste0(tenXdir, "/raw_feature_bc_matrix/")
-  csv_path <- paste0(tenXdir, "/spatial/tissue_positions_list.csv")
-  img_path <- paste0(tenXdir, "/spatial/tissue_lowres_image.png")
-  fac_path <- paste0(tenXdir, "/spatial/scalefactors_json.json")
+Load_10Xh5_to_SpotClean <- function(dataPath, sptFile){
+  raw_path_h5 <- paste0(dataPath, "/raw_feature_bc_matrix.h5")
+  raw_path <- paste0(dataPath, "/raw_feature_bc_matrix")
+  csv_path <- paste0(dataPath, "/spatial/tissue_positions_list.csv")
+  img_path <- paste0(dataPath, "/spatial/tissue_lowres_image.png")
+  fac_path <- paste0(dataPath, "/spatial/scalefactors_json.json")
   # read feature matrix
   if(file.exists(raw_path_h5)){
     raw_mat <- Read10xRawH5(h5_file = raw_path_h5)

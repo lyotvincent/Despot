@@ -173,9 +173,6 @@ def Pip_benchmark(sptFile, h5data):
 cfg = Load_json_configs("params.json")
 sptFile = cfg['sptFile']
 
-# Decoding Rscripts path
-R_Script_Path = cfg['R_Scripts_Path']
-
 # decode decontamination method
 decont_method = cfg['Decontamination']
 
@@ -299,13 +296,13 @@ def spTRS_Benchmark(sptFile, cfg, mode: str = "cluster", force: bool = False):
 
 name = cfg['name']
 
-Spt_init(sptFile=sptFile, force=True)
-spTRS_Decont(sptFile, cfg, force=True)
-spTRS_Cluster(sptFile, cfg, force=True)
-spTRS_Estimate(sptFile, cfg)
-# spTRS_Benchmark(sptFile, cfg, mode="cluster", force=False)
-# Pip_estimate(sptFile, h5data, method=estim_method)
-# Pip_deconv(sptFile, 'matrix', method=deconv_method, name="FFPE_Mouse_Kidney")
+Spt_init(sptFile=sptFile)
+# spTRS_Decont(sptFile, cfg)
+# spTRS_Cluster(sptFile, cfg)
+# #spTRS_Estimate(sptFile, cfg)
+# # spTRS_Benchmark(sptFile, cfg, mode="cluster", force=False)
+# # Pip_estimate(sptFile, h5data, method=estim_method)
+Pip_deconv(sptFile, 'matrix', method=deconv_method, name="stereoScope")
 # Pip_deconv("h5ads/FFPE_Human_Breast_Cancer.h5spt", method="Cell2Location", name='FFPE_Human_Breast_Cancer')
 # Pip_benchmark(sptFile, h5data)
 # print(adata)

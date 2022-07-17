@@ -48,6 +48,7 @@ def Make_References(sptFile, count_size=3000,
                     epoch_thresh=1e-5, ref_size=25, use_genes=None):
     # 设备配置
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(device)
     scdata = Load_spt_sc_to_AnnData(sptFile)
     if use_genes is not None:
         scdata = scdata[:, use_genes]
@@ -63,6 +64,12 @@ def Make_References(sptFile, count_size=3000,
     reference = pd.DataFrame(columns=scdata.var_names, dtype='float32')
     label = pd.DataFrame(columns=["annotation"], dtype='str')
     for type in uni_types:
+        zidx = np.where(scdata.obs['annotation'] == type)[0]
+        nz = zidx.shape[0]
+
+        if nz < ref_size:
+            print(f"{type} | was discarded due to insufficient number of cells")
+            continue
         # 实例化一个模型
         model = VAE(count_size=count_size, h_dim=h_dim, z_dim=z_dim).to(device)
 
@@ -103,7 +110,7 @@ def Make_References(sptFile, count_size=3000,
         with torch.no_grad():
             # 重构的图像
             out, _, _ = model(x)
-            npout = out.numpy()
+            npout = out.cpu().numpy()
             oidx = np.random.choice(np.arange(npout.shape[0]), size=ref_size, replace=False)
             ref = pd.DataFrame(npout[oidx, :], columns=scdata.var_names)
             # 保存参考数据集和annotation
