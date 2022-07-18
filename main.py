@@ -123,7 +123,15 @@ def Pip_estimate(sptFile, h5data='matrix', method='SpatialDE', force=False):
         os.system("Rscript est/Estim_Giotto.R")
 
 
-def Pip_deconv(sptFile, h5data='matrix', method="stereoScope", name='temp'):
+def Pip_deconv(sptFile, h5data='matrix', method="stereoScope", name='temp', force=False):
+    method_list = ['Cell2Location', 'SPOTlight', 'spacexr', 'stereoScope']
+    with h5.File(sptFile, 'r') as f:
+        if method not in method_list:
+            print("Deconvolution method:{0} has not been supported yet, default `stereoScope`.".format(method))
+            method = 'stereoScope'
+        if (h5data + '/deconv/' + method in f) and (force == False):
+            print("Deconvolution with " + method + " has done, skip it.")
+            return
     # os.system("Rscript sc/Generate_scRNA-seq.R")
     if method == 'spacexr':
         # Using R scripts
@@ -253,6 +261,32 @@ def spTRS_Estimate(sptFile, cfg, force=False):
             Pip_estimate(sptFile, h5data, method=method, force=force)
 
 
+def spTRS_Deconv(sptFile, cfg, name='temp', force=False):
+    h5datas = []
+    # whether need Decontamination
+    Decont = cfg['Decontamination']
+    for dec in Decont:
+        if dec == "SpotClean":
+            h5data = 'SpotClean_mat'
+            h5datas.append(h5data)
+        elif dec == "SPCS":
+            h5data = "SPCS_mat"
+            h5datas.append(h5data)
+        elif dec == "none":
+            h5data = "matrix"
+            h5datas.append(h5data)
+        else:
+            print("no matched Decontamination method, default `none`")
+
+    if len(h5datas) == 0:
+        h5datas.append("matrix")
+
+    methods = cfg['Deconvolution']
+    for h5data in h5datas:
+        for method in methods:
+            Pip_deconv(sptFile, h5data, method=method, name=name, force=force)
+
+
 def spTRS_Benchmark(sptFile, cfg, mode: str = "cluster", force: bool = False):
     mode_list = ['cluster', 'estimate', 'deconvolution']
     h5datas = []
@@ -302,7 +336,8 @@ Spt_init(sptFile=sptFile)
 # #spTRS_Estimate(sptFile, cfg)
 # # spTRS_Benchmark(sptFile, cfg, mode="cluster", force=False)
 # # Pip_estimate(sptFile, h5data, method=estim_method)
-Pip_deconv(sptFile, 'matrix', method=deconv_method, name="stereoScope")
+# Pip_deconv(sptFile, 'matrix', method=deconv_method, name="stereoScope")
+spTRS_Deconv(sptFile, cfg)
 # Pip_deconv("h5ads/FFPE_Human_Breast_Cancer.h5spt", method="Cell2Location", name='FFPE_Human_Breast_Cancer')
 # Pip_benchmark(sptFile, h5data)
 # print(adata)

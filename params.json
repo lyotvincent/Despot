@@ -28,6 +28,6 @@
   "Decontamination": ["SPCS","SpotClean"],
   "Clustering": ["BayesSpace", "SpaGCN", "Seurat", "leiden", "Giotto"],
   "Estimation": ["SPARK", "SpaGCN"],
-  "Deconvolution": "stereoScope",
+  "Deconvolution": ["stereoScope", "SPOTlight", "spacexr"],
   "Enhancement": "BayesSpace"
 }
