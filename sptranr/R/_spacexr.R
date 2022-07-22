@@ -10,9 +10,11 @@ GenerateRef_spacexr <- function(sce, ref_size = 25){
   counts <- as(counts, "sparseMatrix")
   rownames(counts) <- rownames(sce)
   colnames(counts) <- colnames(sce)
+  cell_type <- as.factor(sce@colData@listData$free_annotation)
   names(cell_type) <- colnames(sce)
   ref <- spacexr::Reference(counts,
                    cell_types = cell_type)
+
   return(ref)
 }
 
