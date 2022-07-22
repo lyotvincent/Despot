@@ -310,6 +310,7 @@ def StereoScope_pp_VAE(sptFile, tempdir='h5ads', h5data='matrix', standard_size=
 
     # load scRNA-seq data
     ref, lbl = Make_References(sptFile, ref_size=standard_size)
+    Save_spt_from_ref(sptFile, ref, lbl)
     Save_tsv_from_ref(ref, lbl, tempdir, name)
 
 

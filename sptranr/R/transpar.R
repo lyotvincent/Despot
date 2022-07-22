@@ -43,6 +43,8 @@ Save_gt_to_spt <- function(sptFile, ground.truth, ground.sep=',', ground.name='g
   else{
     if(file.exists(ground.truth)){
       gtable <- fread(ground.truth, header = T)
+      rownames(gtable) <- gtable[[1]]
+      gtable <- gtable[order(rownames(gtable)),]
       gt <- gtable[[ground.name]]
       Create_spt_array1d(sptFile, gt, "matrix/idents/ground_truth", "character")
     }else{

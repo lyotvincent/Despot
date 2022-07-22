@@ -223,8 +223,7 @@ def spTRS_Cluster(sptFile, cfg, force=False):
         else:
             print("no matched Decontamination method, default `none`")
 
-    if len(h5datas) == 0:
-        h5datas.append("matrix")
+    h5datas.append("matrix")
 
     # decode dataPath
     dataPath = cfg['dataPath']
@@ -252,8 +251,7 @@ def spTRS_Estimate(sptFile, cfg, force=False):
         else:
             print("no matched Decontamination method, default `none`")
 
-    if len(h5datas) == 0:
-        h5datas.append("matrix")
+    h5datas.append("matrix")
 
     methods = cfg['Estimation']
     for h5data in h5datas:
@@ -278,8 +276,7 @@ def spTRS_Deconv(sptFile, cfg, name='temp', force=False):
         else:
             print("no matched Decontamination method, default `none`")
 
-    if len(h5datas) == 0:
-        h5datas.append("matrix")
+    h5datas.append("matrix")
 
     methods = cfg['Deconvolution']
     for h5data in h5datas:
@@ -330,14 +327,14 @@ def spTRS_Benchmark(sptFile, cfg, mode: str = "cluster", force: bool = False):
 
 name = cfg['name']
 
-Spt_init(sptFile=sptFile)
+# Spt_init(sptFile=sptFile, force=True)
 # spTRS_Decont(sptFile, cfg)
 # spTRS_Cluster(sptFile, cfg)
-# #spTRS_Estimate(sptFile, cfg)
-# # spTRS_Benchmark(sptFile, cfg, mode="cluster", force=False)
+# spTRS_Estimate(sptFile, cfg)
+# spTRS_Benchmark(sptFile, cfg, mode="cluster", force=False)
 # # Pip_estimate(sptFile, h5data, method=estim_method)
 # Pip_deconv(sptFile, 'matrix', method=deconv_method, name="stereoScope")
-spTRS_Deconv(sptFile, cfg)
+spTRS_Deconv(sptFile, cfg, force=True)
 # Pip_deconv("h5ads/FFPE_Human_Breast_Cancer.h5spt", method="Cell2Location", name='FFPE_Human_Breast_Cancer')
 # Pip_benchmark(sptFile, h5data)
 # print(adata)

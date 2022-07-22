@@ -387,3 +387,31 @@ def Save_spt_from_Cell2Location(sptFile, adata, h5data='matrix'):
         f.create_dataset(h5data + '/deconv/Cell2Location/barcodes', data=barcodes)
         f.create_dataset(h5data + '/deconv/Cell2Location/shape', data=shape)
     print("Deconvolution with `Cell2Location` finished, Weight saved in /" + h5data + '/deconv/Cell2Location')
+
+
+def Save_spt_from_ref(sptFile, reference: pd.DataFrame, label: pd.DataFrame):
+    with h5.File(sptFile, 'a') as f:
+        if 'sc-ref' not in f:
+            f.create_group('sc-ref')
+        else:
+            del f['sc-ref/features/free_annotation']
+            del f['sc-ref/features/name']
+            del f['sc-ref/features']
+            del f['sc-ref/shape']
+            del f['sc-ref/indptr']
+            del f['sc-ref/indices']
+            del f['sc-ref/data']
+            del f['sc-ref']
+            f.create_group('sc-ref')
+        ref = csc_matrix(reference)
+        f.create_dataset('sc-ref/data', data=ref.data, dtype='float32')
+        f.create_dataset('sc-ref/indices', data=ref.indices, dtype='int')
+        f.create_dataset('sc-ref/indptr', data=ref.indptr, dtype='int')
+        f.create_dataset('sc-ref/shape', data=ref.shape, dtype='int')
+        f.create_group('sc-ref/features')
+        name = list(np.array(reference.columns, dtype='S'))
+        annotation = list(np.array(label['annotation'], dtype='S'))
+        f.create_dataset('sc-ref/features/name', data=name)
+        f.create_dataset('sc-ref/features/free_annotation', data=annotation)
+    print("VAE references finished, reference scRNA-seq data saved in sc-ref.")
+
