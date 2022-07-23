@@ -397,17 +397,20 @@ def Save_spt_from_ref(sptFile, reference: pd.DataFrame, label: pd.DataFrame):
             del f['sc-ref/features/free_annotation']
             del f['sc-ref/features/name']
             del f['sc-ref/features']
+            del f['barcodes']
             del f['sc-ref/shape']
             del f['sc-ref/indptr']
             del f['sc-ref/indices']
             del f['sc-ref/data']
             del f['sc-ref']
             f.create_group('sc-ref')
-        ref = csc_matrix(reference)
+        ref = csr_matrix(reference).T
         f.create_dataset('sc-ref/data', data=ref.data, dtype='float32')
         f.create_dataset('sc-ref/indices', data=ref.indices, dtype='int')
         f.create_dataset('sc-ref/indptr', data=ref.indptr, dtype='int')
-        f.create_dataset('sc-ref/shape', data=ref.shape, dtype='int')
+        shape = ref.shape
+        f.create_dataset('sc-ref/shape', data=shape, dtype='int')
+        f.create_dataset('sc-ref/barcodes', data=reference.index, dtype='int')
         f.create_group('sc-ref/features')
         name = list(np.array(reference.columns, dtype='S'))
         annotation = list(np.array(label['annotation'], dtype='S'))

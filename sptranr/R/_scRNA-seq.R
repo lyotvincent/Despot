@@ -239,7 +239,7 @@ Load_sptsc_to_SCE <- function(sptFile, h5data="scRNA_seq"){
                       dimnames = list(NULL, NULL),
                       repr = "C")
   colData <- DataFrame(barcodes = h5_obj$barcodes,
-                       free_annotation = h5_obj$idents$annotation)
+                       free_annotation = h5_obj$features$free_annotation)
   se <- SummarizedExperiment(assays = list(counts = dat),
                              rowData = DataFrame(gene_name = h5_obj$features$name),
                              colData = colData)

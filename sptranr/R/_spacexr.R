@@ -1,11 +1,6 @@
 library(spacexr)
 
-GenerateRef_spacexr <- function(sce, ref_size = 25){
-  cell_type <- as.factor(sce@colData@listData$free_annotation)
-  scell <- table(cell_type)
-  # filter the cell less than 25
-  stype <- attr(subset(scell, scell < ref_size), "names")
-  sce <- sce[, !sce$free_annotation %in% stype]
+GenerateRef_spacexr <- function(sce){
   counts <- sce@assays@data$counts
   counts <- as(counts, "sparseMatrix")
   rownames(counts) <- rownames(sce)

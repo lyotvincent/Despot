@@ -22,7 +22,7 @@ for(decont in params$Decontamination){
   }
 
   # read References
-  sce <- Load_sptsc_to_SCE(sptFile, "scRNA_seq")
+  sce <- Load_sptsc_to_SCE(sptFile, "sc-ref")
   sr <- Load_spt_to_SpatialRNA(sptFile)
   ref <- GenerateRef_spacexr(sce)
   rctd <- Deconvolution_spacexr(sr, ref)
