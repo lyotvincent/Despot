@@ -791,8 +791,7 @@ Load_spt_to_SE <- function(sptFile, h5data = 'matrix'){
   dat_assay <- S4Vectors::SimpleList(dat)
   # construct observation & feature metadata
   if(h5data == 'matrix'){
-    rowData <- DataFrame(symbol = h5mat$features$name,
-                    id = h5mat$features$id)
+    rowData <- DataFrame(symbol = h5mat$features$name)
   }
   else{
     rowData <- DataFrame(symbol = h5mat$features$name)

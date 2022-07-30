@@ -334,7 +334,7 @@ name = cfg['name']
 # spTRS_Benchmark(sptFile, cfg, mode="cluster", force=False)
 # # Pip_estimate(sptFile, h5data, method=estim_method)
 # Pip_deconv(sptFile, 'matrix', method=deconv_method, name="stereoScope")
-spTRS_Deconv(sptFile, cfg, force=True)
+spTRS_Deconv(sptFile, cfg)
 # Pip_deconv("h5ads/FFPE_Human_Breast_Cancer.h5spt", method="Cell2Location", name='FFPE_Human_Breast_Cancer')
 # Pip_benchmark(sptFile, h5data)
 # print(adata)

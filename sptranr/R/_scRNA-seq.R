@@ -230,7 +230,7 @@ Load_ref_to_SCE <- function(refdir){
   return(sce)
 }
 
-Load_sptsc_to_SCE <- function(sptFile, h5data="scRNA_seq"){
+Load_sptsc_to_SCE <- function(sptFile, h5data = "scRNA_seq"){
   h5_obj <- rhdf5::h5read(sptFile, h5data)
   dat <- sparseMatrix(i = h5_obj$indices[] + 1,
                       p = h5_obj$indptr[],
@@ -239,7 +239,7 @@ Load_sptsc_to_SCE <- function(sptFile, h5data="scRNA_seq"){
                       dimnames = list(NULL, NULL),
                       repr = "C")
   colData <- DataFrame(barcodes = h5_obj$barcodes,
-                       free_annotation = h5_obj$features$free_annotation)
+                       free_annotation = h5_obj$idents$annotation)
   se <- SummarizedExperiment(assays = list(counts = dat),
                              rowData = DataFrame(gene_name = h5_obj$features$name),
                              colData = colData)
