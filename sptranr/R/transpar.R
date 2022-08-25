@@ -37,19 +37,15 @@ Init_spt <- function(sptFile){
 # Save ground.truth to spt
 Save_gt_to_spt <- function(sptFile, ground.truth, ground.sep=',', ground.name='ground_truth'){
   # Save ground_truth
-  if(dir.exists(ground.truth)){
+  print(ground.truth)
+  if(file.exists(ground.truth)){
+    gtable <- fread(ground.truth, header = T)
+    rownames(gtable) <- gtable[[1]]
+    gtable <- gtable[order(rownames(gtable)),]
+    gt <- gtable[[ground.name]]
+    Create_spt_array1d(sptFile, gt, "matrix/idents/ground_truth", "character")
+  }else{
     message("No ground truth for this data.")
-  }
-  else{
-    if(file.exists(ground.truth)){
-      gtable <- fread(ground.truth, header = T)
-      rownames(gtable) <- gtable[[1]]
-      gtable <- gtable[order(rownames(gtable)),]
-      gt <- gtable[[ground.name]]
-      Create_spt_array1d(sptFile, gt, "matrix/idents/ground_truth", "character")
-    }else{
-      message("No ground truth for this data.")
-    }
   }
 }
 
@@ -257,12 +253,12 @@ Load_h5_to_Seurat <- function(h5dir, h5data = 'matrix', assay = "Spatial"){
                         p = h5_obj$indptr[],
                         x = as.numeric(h5_obj$data[]),
                         dims = h5_obj$shape[],
-                        dimnames = list(h5_obj$features$id, h5_obj$barcodes),
+                        dimnames = list(h5_obj$features$name, h5_obj$barcodes),
                         repr = "C")
     seu <- CreateSeuratObject(counts = dat, project = "Seurat", assay = assay)
-    for(fea in c('feature_type', 'genome', 'id', 'name')){
-      seu[[assay]]@meta.features[fea] <- h5_obj$features[fea]
-    }
+    # for(fea in c('feature_type', 'genome', 'id', 'name')){
+    #   seu[[assay]]@meta.features[fea] <- h5_obj$features[fea]
+    # }
   }
   else if(h5data == 'SpotClean_mat'){
     h5_obj <- rhdf5::h5read(h5dir, h5data)
@@ -742,7 +738,7 @@ Load_spt_to_Giotto <- function(sptFile, h5data = 'matrix',
                         p = h5_obj$indptr[],
                         x = as.numeric(h5_obj$data[]),
                         dims = h5_obj$shape[],
-                        dimnames = list(h5_obj$features$id, h5_obj$barcodes),
+                        dimnames = list(h5_obj$features$name, h5_obj$barcodes),
                         repr = "C")
     gobj <- createGiottoObject(raw_exprs = dat,
                                spatial_locs = colData,

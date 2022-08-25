@@ -4,10 +4,11 @@ from utils.io import *
 def spTRS_report(sptFile, count="matrix"):
     # report brief information
     adata = Load_spt_to_AnnData(sptFile, count)
-    sc.pl.spatial(adata, color="ground_truth")
-
+    figd, axsd = plt.subplots(1, 1, figsize=(6, 6), constrained_layout=True)
+    sc.pl.spatial(adata, color="ground_truth", show=False, ax = axsd)
+    figd.savefig("spatial1.pdf")
     # report deconvolution heatmap
-    W = adata.obsm['StereoScope']
+    W = adata.obsm['spacexr']
     W0 = W.copy()
     W0['annotation'] = adata.obs['ground_truth'].copy()
     df = W0.groupby(['annotation']).sum()
@@ -19,7 +20,7 @@ def spTRS_report(sptFile, count="matrix"):
     figd, axsd = plt.subplots(1, 1, figsize=(6, 6), constrained_layout=True)
     import seaborn as sns
     sns.heatmap(df0.T, ax=axsd, cmap='Purples',linewidths=0.2)
-    figd.savefig("stsc1.pdf")
+    figd.savefig("spacexr1.pdf")
 
     # report deconvolution composition
     W0 = W.copy()

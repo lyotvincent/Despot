@@ -1,6 +1,61 @@
 from utils.common import *
 
 
+class sptInfo:
+    def __init__(self, sptFile):
+        self.sptFile = sptFile
+        with h5.File(sptFile, 'r') as f:
+            mat = list(f.keys())
+
+        # add origin matrix
+        self.spmatrixs = {}
+        if 'matrix' in mat:
+            self.spmatrixs['matrix'] = {}
+        # add decontaminated matrix
+        for m in mat:
+            if m[-4:] == '_mat':
+                self.spmatrixs[m] = {}
+
+        # add scRNA-seq matrix
+        self.scmatrixs = []
+        if 'scRNA_seq' in mat:
+            self.scmatrixs.append('scRNA_seq')
+
+        # for each spmatrix, add clu_methods and dcv_methods
+        with h5.File(self.sptFile, 'r') as f:
+            for keys in self.spmatrixs.keys():
+                h5mat = f[keys]
+                clu_mtds = list(h5mat['idents'].keys())
+                dcv_mtds = list(h5mat['deconv'].keys())
+                self.spmatrixs[keys]['cluster_methods'] = clu_mtds
+                self.spmatrixs[keys]['deconvolution_methods'] = dcv_mtds
+
+    def get_spmatrix(self):
+        return list(self.spmatrixs.keys())
+
+    def get_clu_methods(self, spmat: str):
+        if spmat == 'matrix':
+            return self.spmatrixs[spmat]['cluster_methods']
+        else:
+            if spmat[-4:] != '_mat':
+                spmat = spmat + '_mat'
+            if spmat in self.spmatrixs.keys():
+                return self.spmatrixs[spmat]['cluster_methods']
+            else:
+                return None
+
+    def get_dcv_methods(self, spmat: str):
+        if spmat == 'matrix':
+            return self.spmatrixs[spmat]['deconvolution_methods']
+        else:
+            if spmat[-4:] != '_mat':
+                spmat = spmat + '_mat'
+            if spmat in self.spmatrixs.keys():
+                return self.spmatrixs[spmat]['deconvolution_methods']
+            else:
+                return None
+
+
 # the params are saved in a .json config
 def Load_json_configs(path: str, encoding: str = 'utf8'):
     with open(path, 'r', encoding=encoding) as fp:
@@ -106,13 +161,15 @@ def Load_spt_to_AnnData(sptFile: str,
         h5_obj.create_group(count + '/deconv')
     else:
         h5dcv = h5dat['deconv']
-        if len(h5dcv) > 0:
+        if len(h5dcv.keys()) > 0:
             for dcv in h5dcv.keys():
+                print(dcv)
                 shape = h5dcv[dcv]['shape']
                 weights = np.array(h5dcv[dcv]['weights']).reshape(shape[1], shape[0]).T
                 barcodes = np.array(h5dcv[dcv]['barcodes'], dtype='str')
                 cell_type = np.array(h5dcv[dcv]['cell_type'], dtype='str')
                 w = pd.DataFrame(weights, index=barcodes, columns=cell_type)
+                print(w)
                 adata.obsm[dcv] = w
     h5_obj.close()
     return adata
@@ -341,7 +398,7 @@ def Save_spt_from_SpaGCN_est(sptFile, adata, h5data='matrix'):
     print("Estimation with `SpaGCN` finished, HVGs saved in /" + h5data + '/features/is_HVG/SpaGCN')
 
 
-def Save_spt_from_StereoScope(sptFile, Wfile, h5data='matrix'):
+def Save_spt_from_StereoScope(sptFile, Wfile, h5data='matrix', name='StereoScope'):
     W = pd.read_csv(Wfile, sep='\t', index_col=0).T
     shape = [W.shape[1], W.shape[0]]
     weights = np.array(W).flatten()
@@ -349,20 +406,20 @@ def Save_spt_from_StereoScope(sptFile, Wfile, h5data='matrix'):
     barcodes = list(W.columns)
 
     with h5.File(sptFile, 'a') as f:
-        if h5data + '/deconv/StereoScope' not in f:
-            f.create_group(h5data + '/deconv/StereoScope')
+        if h5data + '/deconv/' + name not in f:
+            f.create_group(h5data + '/deconv/' + name)
         else:
-            del f[h5data + '/deconv/StereoScope/weights']
-            del f[h5data + '/deconv/StereoScope/shape']
-            del f[h5data + '/deconv/StereoScope/cell_type']
-            del f[h5data + '/deconv/StereoScope/barcodes']
-            del f[h5data + '/deconv/StereoScope']
-            f.create_group(h5data + '/deconv/StereoScope')
-        f.create_dataset(h5data + '/deconv/StereoScope/weights', data=weights)
-        f.create_dataset(h5data + '/deconv/StereoScope/cell_type', data=cell_type)
-        f.create_dataset(h5data + '/deconv/StereoScope/barcodes', data=barcodes)
-        f.create_dataset(h5data + '/deconv/StereoScope/shape', data=shape)
-    print("Deconvolution with `StereoScope` finished, Weight saved in /" + h5data + '/deconv/StereoScope')
+            del f[h5data + '/deconv/' + name + '/weights']
+            del f[h5data + '/deconv/' + name + '/shape']
+            del f[h5data + '/deconv/' + name + '/cell_type']
+            del f[h5data + '/deconv/' + name + '/barcodes']
+            del f[h5data + '/deconv/' + name]
+            f.create_group(h5data + '/deconv/' + name)
+        f.create_dataset(h5data + '/deconv/' + name + '/weights', data=weights)
+        f.create_dataset(h5data + '/deconv/' + name + '/cell_type', data=cell_type)
+        f.create_dataset(h5data + '/deconv/' + name + '/barcodes', data=barcodes)
+        f.create_dataset(h5data + '/deconv/' + name + '/shape', data=shape)
+    print("Deconvolution with `StereoScope` finished, Weight saved in /" + h5data + '/deconv/' + name)
 
 
 def Save_spt_from_Cell2Location(sptFile, adata, h5data='matrix'):
@@ -394,15 +451,26 @@ def Save_spt_from_ref(sptFile, reference: pd.DataFrame, label: pd.DataFrame):
         if 'sc-ref' not in f:
             f.create_group('sc-ref')
         else:
-            del f['sc-ref/features/free_annotation']
-            del f['sc-ref/features/name']
-            del f['sc-ref/features']
-            del f['barcodes']
-            del f['sc-ref/shape']
-            del f['sc-ref/indptr']
-            del f['sc-ref/indices']
-            del f['sc-ref/data']
-            del f['sc-ref']
+            if 'sc-ref/idents/annotation' in f:
+                del f['sc-ref/idents/annotation']
+            if 'sc-ref/idents' in f:
+                del f['sc-ref/idents']
+            if 'sc-ref/features/name' in f:
+                del f['sc-ref/features/name']
+            if 'sc-ref/features' in f:
+                del f['sc-ref/features']
+            if 'sc-ref/barcodes' in f:
+                del f['sc-ref/barcodes']
+            if 'sc-ref/shape' in f:
+                del f['sc-ref/shape']
+            if 'sc-ref/indptr' in f:
+                del f['sc-ref/indptr']
+            if 'sc-ref/indices' in f:
+                del f['sc-ref/indices']
+            if 'sc-ref/data' in f:
+                del f['sc-ref/data']
+            if 'sc-ref' in f:
+                del f['sc-ref']
             f.create_group('sc-ref')
         ref = csr_matrix(reference).T
         f.create_dataset('sc-ref/data', data=ref.data, dtype='float32')
@@ -415,6 +483,6 @@ def Save_spt_from_ref(sptFile, reference: pd.DataFrame, label: pd.DataFrame):
         name = list(np.array(reference.columns, dtype='S'))
         annotation = list(np.array(label['annotation'], dtype='S'))
         f.create_dataset('sc-ref/features/name', data=name)
-        f.create_dataset('sc-ref/features/free_annotation', data=annotation)
+        f.create_group('sc-ref/idents')
+        f.create_dataset('sc-ref/idents/annotation', data=annotation)
     print("VAE references finished, reference scRNA-seq data saved in sc-ref.")
-

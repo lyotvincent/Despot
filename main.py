@@ -132,20 +132,22 @@ def Pip_deconv(sptFile, h5data='matrix', method="stereoScope", name='temp', forc
         if (h5data + '/deconv/' + method in f) and (force == False):
             print("Deconvolution with " + method + " has done, skip it.")
             return
-    # os.system("Rscript sc/Generate_scRNA-seq.R")
     if method == 'spacexr':
         # Using R scripts
+        from dcv.spacexr import spacexr_pp_VAE
+        spacexr_pp_VAE(sptFile, tempdir="h5ads", h5data=h5data, name=name)
         os.system("Rscript dcv/Deconv_spacexr.R")
     elif method == 'SPOTlight':
         # Using R scripts
         os.system("Rscript dcv/Deconv_SPOTlight.R")
     elif method == 'stereoScope':
-        from dcv.stereoScope import StereoScope_pp_VAE, StereoScope_run
+        from dcv.stereoScope import StereoScope_pp_VAE, StereoScope_run, StereoScope_pp_EasySample
         StereoScope_pp_VAE(sptFile, tempdir="h5ads", h5data=h5data, name=name)
+        # StereoScope_pp_EasySample(sptFile, h5data=h5data)
         StereoScope_run(stereo_dir="h5ads/references/" + name, out_dir="h5ads/" + name + "_res")
         Wfile = os.listdir("h5ads/" + name + "_res/spt_data")[0]
         Wfile = "h5ads/" + name + "_res/spt_data/" + Wfile
-        Save_spt_from_StereoScope(sptFile, Wfile, h5data)
+        Save_spt_from_StereoScope(sptFile, Wfile, h5data, name='StereoScope')
         os.remove(Wfile)
     elif method == 'Cell2Location':
         from dcv.cell2location import Cell2Location_run
@@ -260,6 +262,7 @@ def spTRS_Estimate(sptFile, cfg, force=False):
 
 
 def spTRS_Deconv(sptFile, cfg, name='temp', force=False):
+    # os.system("Rscript sc/Generate_scRNA-seq.R")
     h5datas = []
     # whether need Decontamination
     Decont = cfg['Decontamination']
@@ -327,17 +330,12 @@ def spTRS_Benchmark(sptFile, cfg, mode: str = "cluster", force: bool = False):
 
 name = cfg['name']
 
-# Spt_init(sptFile=sptFile, force=True)
-# spTRS_Decont(sptFile, cfg)
-# spTRS_Cluster(sptFile, cfg)
-# spTRS_Estimate(sptFile, cfg)
-# spTRS_Benchmark(sptFile, cfg, mode="cluster", force=False)
-# # Pip_estimate(sptFile, h5data, method=estim_method)
-# Pip_deconv(sptFile, 'matrix', method=deconv_method, name="stereoScope")
+Spt_init(sptFile=sptFile, force=True)
+spTRS_Decont(sptFile, cfg)
+spTRS_Cluster(sptFile, cfg)
+spTRS_Estimate(sptFile, cfg, force=True)
 spTRS_Deconv(sptFile, cfg)
-# Pip_deconv("h5ads/FFPE_Human_Breast_Cancer.h5spt", method="Cell2Location", name='FFPE_Human_Breast_Cancer')
-# Pip_benchmark(sptFile, h5data)
-# print(adata)
+# spTRS_Benchmark(sptFile, cfg, mode="cluster", force=False)
 # Pip_cluVisual(sptFile, h5data, imgPath="151673_none_cluster.pdf")
 # Cluster_Visualization(adata, type="spatial")
 # sc.pl.spatial(adata, img_key="lowres", color="ground_truth", size=1.5)
