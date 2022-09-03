@@ -248,3 +248,19 @@ Load_sptsc_to_SCE <- function(sptFile, h5data = "scRNA_seq"){
   rownames(sce) <- h5_obj$features$name
   return(sce)
 }
+
+Load_sptsc_to_Seurat <- function(sptFile, h5data = "scRNA_seq"){
+  library(SeuratObject)
+  h5_obj <- rhdf5::h5read(sptFile, h5data)
+  dat <- sparseMatrix(i = h5_obj$indices[] + 1,
+                      p = h5_obj$indptr[],
+                      x = as.numeric(h5_obj$data[]),
+                      dims = h5_obj$shape[],
+                      dimnames = list(h5_obj$features$name, h5_obj$barcodes),
+                      repr = "C")
+  colData <- DataFrame(barcodes = h5_obj$barcodes,
+                       free_annotation = h5_obj$idents$annotation)
+  seu <- CreateSeuratObject(counts = dat)
+  seu@meta.data$orig.ident <- h5_obj$idents$annotation
+  return(seu)
+}

@@ -11,6 +11,8 @@ from utils.io import *
 from utils.purity import purity_score
 from sklearn.metrics import adjusted_rand_score
 from sklearn.metrics import normalized_mutual_info_score
+import alphashape
+import networkx as nx
 
 
 # adata = Load_spt_to_AnnData("h5ads/FFPE_Mouse_Kidney.h5spt")
@@ -86,18 +88,19 @@ def p_moransI_purity(adata, dcv_mtd: str, clu: str):
         # spot_labels = ['0 ns', '1 hot spot', '2 doughnut', '3 cold spot', '4 diamond']
         # p_moransI = [spot_labels[i] for i in spots]
         # select the point in lisa cluster
-        adata.obs['p_moransI_'+comp] = spots
-        adata0 = adata[adata.obs['p_moransI_'+comp] > 0]
+        adata.obs['p_moransI_' + comp] = spots
+        adata0 = adata[adata.obs['p_moransI_' + comp] > 0]
         # calculate the purity with the segmentation
         pred = adata0.obs[clu]
-        true = adata0.obs['p_moransI_'+comp]
+        true = adata0.obs['p_moransI_' + comp]
         ps = purity_score(true, pred)
         ari = adjusted_rand_score(true, pred)
         nmi = normalized_mutual_info_score(true, pred)
-        pf =pd.DataFrame(data=[MI.I, ari, nmi, ps], index=['moransI', 'ARI', 'NMI', 'purity'], columns=[comp])
+        pf = pd.DataFrame(data=[MI.I, ari, nmi, ps], index=['moransI', 'ARI', 'NMI', 'purity'], columns=[comp])
         pf = pf.T
         perf = pd.concat([perf, pf], ignore_index=False)
     return perf
+
 
 def suitable_location(adata, perf, clu, beta=1):
     cell_type = perf.index
@@ -116,7 +119,7 @@ def suitable_location(adata, perf, clu, beta=1):
             if precision == 0 and recall == 0:
                 HH.append(0)
             else:
-                Fscore = (1 + beta**2) * (precision * recall) / (beta ** 2 * (precision + recall))
+                Fscore = (1 + beta ** 2) * (precision * recall) / (beta ** 2 * (precision + recall))
                 HH.append(Fscore)
         HH = pd.DataFrame(HH, index=clu_num)
         SL = pd.concat([SL, HH], axis=1)
@@ -137,7 +140,7 @@ def spTRS_findgroups(sptFile, beta=1):
         print(dcv_mtds)
         for dcv in dcv_mtds:
             for clu in clu_mtds:
-                mtd_name = "{0}_{1}_{2}".format(spmat, dcv, clu)
+                mtd_name = "{0}+{1}+{2}".format(spmat, dcv, clu)
                 print("Finding Groups in the combination of {0}".format(mtd_name))
                 perf = p_moransI_purity(adata, dcv_mtd=dcv, clu=clu)
                 perf = perf[perf['moransI'] > 0.5]
@@ -147,6 +150,7 @@ def spTRS_findgroups(sptFile, beta=1):
                 Groups[mtd_name] = SL
                 Best_Fscore[mtd_name] = BST
     return Groups, Best_Fscore
+
 
 def spTRS_Find_bestGroup(sptFile, beta=1):
     Groups, Best_Fscore = spTRS_findgroups(sptFile, beta)
@@ -160,15 +164,241 @@ def spTRS_Find_bestGroup(sptFile, beta=1):
             else:
                 if mtd_Fscore.loc[ct, 'F-score'] > Best_dict[ct][0]:
                     Best_dict[ct] = (mtd_Fscore.loc[ct, 'F-score'], mtd_Fscore.loc[ct, 'domain'], mtd)
-    return Best_dict
+    return Best_dict, Groups
 
 
-def Show_best_group(adata:ad.AnnData, dcv_mtd, clu_mtd, cell_type, domain, figname):
-    abd_name = dcv_mtd + '_' + clu_mtd + '_' + cell_type
+def Fscore_Comparison(Best_dict: dict, Groups):
+    # find f-score about ground_truth
+    ground_truth_max = pd.DataFrame()
+    Seurat_max = pd.DataFrame()
+    Giotto_max = pd.DataFrame()
+    # spTRS compare with Seurat and Giotto
+    for mtd in Groups.keys():
+        clu_mtd = mtd.split('+')[2]
+        if clu_mtd == 'ground_truth':
+            group = Groups[mtd]
+            ground_truth_max = ground_truth_max.append(pd.DataFrame(group.max()).T)
+        dcv_mtd = mtd.split('+')[1]
+        dct_mtd = mtd.split('+')[0]
+        if dct_mtd == 'matrix' and clu_mtd == 'Seurat' and dcv_mtd == 'Seurat':
+            group = Groups[mtd]
+            Seurat_max = Seurat_max.append(pd.DataFrame(group.max()).T)
+        if dct_mtd == 'matrix' and clu_mtd == 'Giotto' and dcv_mtd == 'Giotto':
+            group = Groups[mtd]
+            Giotto_max = Giotto_max.append(pd.DataFrame(group.max()).T)
+    ground_truth_max = pd.DataFrame(ground_truth_max.max()).T
+    ground_truth_max.index=['ground_truth']
+    Seurat_max = pd.DataFrame(Seurat_max.max()).T
+    Seurat_max.index = ['Seurat']
+    ground_truth_max = ground_truth_max.append(Seurat_max)
+    Giotto_max = pd.DataFrame(Giotto_max.max()).T
+    Giotto_max.index = ['Giotto']
+    ground_truth_max = ground_truth_max.append(Giotto_max)
+    cell_type = []
+    fscore = []
+    for key in Best_dict.keys():
+       cell_type.append(key)
+       fscore.append(Best_dict[key][0])
+    spTRS_max = pd.DataFrame(data=fscore, index=cell_type, columns=['spTRS']).T
+    res = ground_truth_max.append(spTRS_max)
+    return res
+
+
+def Show_best_group(sptFile, mtd_chain:str, cell_type, domain, fscore, figname):
+    mtds = mtd_chain.split('+')
+    dct_mtd, dcv_mtd, clu_mtd = mtds[0], mtds[1], mtds[2]
+    abd_name = dct_mtd + '_' + dcv_mtd + '_' + clu_mtd + '_' + cell_type
+    adata = Load_spt_to_AnnData(sptFile, count=dct_mtd)
     adata.obs[abd_name] = adata.obsm[dcv_mtd][cell_type]
     fig, axs = plt.subplots(1, 2, figsize=(6, 3), constrained_layout=True)
     sc.pl.spatial(adata, color=clu_mtd, ax=axs[0])
     sc.pl.spatial(adata, color=abd_name, ax=axs[1])
     axs[1].set_title(dcv_mtd)
-    fig.suptitle("find {0} locate in {1} using methods chain:{2}".format(cell_type, str(domain), abd_name))
-    fig.savefig(figname)
+    fig.suptitle("find {0} locate in {1} using methods chain:"
+                 "\n{2}, F-score={3}".format(cell_type, str(domain), abd_name, fscore))
+    fig.savefig(figname, dpi=400)
+
+
+def distance(a, b):
+    """
+    计算a,b两点的直线距离
+    :param a: a点坐标（大地坐标 m）
+    :param b: b点坐标（大地坐标 m）
+    :return: dis 直线距离
+    """
+    p1 = np.array(a)
+    p2 = np.array(b)
+
+    dis = sum(abs(p2 - p1))
+    return dis
+
+
+def Alpha_Shape6(points: pd.DataFrame):
+    # 针对6邻居spot阵列的轮廓提取
+    x = points['array_row']
+    y = points['array_col']
+    count = len(x)
+    edge_x = []
+    edge_y = []
+    single_x = []
+    single_y = []
+    # 首先筛选边缘点
+    for i in range(count):
+        dis = abs(x - x[i]) + abs(y - y[i])
+        neighbors = sum(dis == 2)
+        if neighbors >= 6:
+            continue
+        elif neighbors <= 0:
+            single_x.append(x[i])
+            single_y.append(y[i])
+        else:
+            edge_x.append(x[i])
+            edge_y.append(y[i])
+    # 然后判断多边形数量，以及边界顺序
+    # 首先建立点和边
+    G = nx.Graph()
+    bound_len = len(edge_x)
+    nodes = range(bound_len)
+    G.add_nodes_from(nodes)
+
+    x = np.array(edge_x.copy())
+    y = np.array(edge_y.copy())
+    dis = np.array(list(map(lambda i: abs(x - x[i]) + abs(y - y[i]), range(bound_len))))
+    dis0 = np.where((dis <= 6) * (dis > 0), dis, 0)
+    G = nx.from_numpy_array(dis0)
+
+    nx.is_eulerian(G)
+    for i in range(bound_len):
+        dis.append(list(abs(x - x[i]) + abs(y - y[i])))
+        neighbors = np.where(dis <= 4 and dis > 0)
+        for j in range(len(neighbors)):
+            G.add_edge(i, neighbors[j])
+    cc = nx.connected_components(G)
+
+
+    return edge_x, edge_y
+
+def Alpha_Shape(points: pd.DataFrame, alpha):
+    x = points['array_row']
+    y = points['array_col']
+    count = len(x)
+    i = 0
+    temp_i = i
+    edge_x = []
+    edge_y = []
+    edge = []
+    edge_len = 0
+    while i < count:
+        i_range = np.array([t for t, v in enumerate(x < x[i] + 2 * alpha) if v == True])
+        i_range = i_range[[t for t, v in enumerate(points.loc[i_range, 'array_row'] > x[i] - 2 * alpha) if v == True]]
+        i_range = i_range[[t for t, v in enumerate(points.loc[i_range, 'array_col'] < y[i] + 2 * alpha) if v == True]]
+        i_range = i_range[[t for t, v in enumerate(points.loc[i_range, 'array_col'] > y[i] - 2 * alpha) if v == True]]
+
+        """ i_range 是可能与当前点的连线组成边界线的备选点集"""
+        for k in i_range:
+            # 避免重复选点（一个点不能组成三个边界线，最多只能组成两条边界）
+            if edge_x.count(x[k]) > 0 and edge_y.count(y[k]) > 0:
+                continue
+
+            # 计算 当前点 与 备选点 的距离
+            dis = distance((x[i], y[i]), (x[k], y[k]))
+
+            # 因为当前点 和 备选点 要在一个圆上，所有距离不能大于圆直径, 或者 当前点 与 备选点 重合
+            if dis > 2 * alpha or dis == 0:
+                continue
+
+            # 当前点与备选点的连线 L 线段中点
+            center_x = (x[k] + x[i]) * 0.5
+            center_y = (y[k] + y[i]) * 0.5
+
+            # L 的 方向向量
+            direct_x = x[k] - x[i]
+            direct_y = y[k] - y[i]
+
+            #  L 的 法向量K 及其单位化
+            nomal_x = -direct_y / math.sqrt(pow(direct_x, 2) + pow(direct_y, 2))
+            nomal_y = direct_x / math.sqrt(pow(direct_x, 2) + pow(direct_y, 2))
+
+            # 圆心到直线L 距离
+            disOfcenter = math.sqrt(pow(alpha, 2) - 0.25 * pow(dis, 2))
+
+            if nomal_x != 0:
+                a = math.sqrt(pow(disOfcenter, 2) / (1 + pow(nomal_y / nomal_x, 2)))
+                b = a * (nomal_y / nomal_x)
+            else:
+                a = 0
+                b = alpha
+
+            # 圆心 坐标
+            cicle1_x = center_x + a
+            cicle1_y = center_y + b
+
+            cicle2_x = center_x - a
+            cicle2_y = center_y - b
+
+            # 检测圆内是否有其他点
+            b1 = False
+            b2 = False
+
+            # 筛选以圆心R1为质点，边长为 2*alpha 的方形区域内的点集
+            inSquare = np.array([t for t, v in enumerate(x < cicle1_x + alpha) if v == True])
+            inSquare = inSquare[[t for t, v in enumerate(points.loc[inSquare, 'array_row'] > cicle1_x - alpha) if v == True]]
+            inSquare = inSquare[[t for t, v in enumerate(points.loc[inSquare, 'array_col'] < cicle1_y + alpha) if v == True]]
+            inSquare = inSquare[[t for t, v in enumerate(points.loc[inSquare, 'array_col'] > cicle1_y - alpha) if v == True]]
+            if len(inSquare) != 0:
+                for j in inSquare:
+                    if j == i or j == k:  # 点集内的点 除去当前点i 和 备选点k
+                        continue
+                    else:
+                        d = distance((x[j], y[j]), (cicle1_x, cicle1_y))  # 计算备选点k与点集内的点的距离
+                        if d <= alpha:  # 圆内有点 ，跳过
+                            b1 = True
+                            break
+            # 筛选 圆R2
+            inSquare = np.array([t for t, v in enumerate(x < cicle2_x + alpha) if v == True])
+            inSquare = inSquare[[t for t, v in enumerate(points.loc[inSquare, 'array_row'] > cicle2_x - alpha) if v == True]]
+            inSquare = inSquare[[t for t, v in enumerate(points.loc[inSquare, 'array_col'] < cicle2_y + alpha) if v == True]]
+            inSquare = inSquare[[t for t, v in enumerate(points.loc[inSquare, 'array_col'] > cicle2_y - alpha) if v == True]]
+            if len(inSquare) != 0:
+                for j in inSquare:  # 与原两个点的坐标点一样
+                    if j == i or j == k or distance((x[j], y[j]), (x[i], y[i])) == 0:
+                        continue
+                    else:
+                        d = distance((x[j], y[j]), (cicle2_x, cicle2_y))
+                        if d <= alpha:  # 圆内有点 ，跳过
+                            b2 = True
+                            break
+
+            # 圆1 或 圆2 内没有其他的点，则备选点k是边界点
+            if b1 == False or b2 == False:
+                if edge_x.count(x[i]) < 1 or edge_y.count(y[i]) < 1:  # 当前点未加入边界点集
+                    edge_x.append(x[i])
+                    edge_y.append(y[i])
+                    edge.append(i)
+                if edge_x.count(x[k]) < 1 or edge_y.count(y[k]) < 1:  # 备选点k已未加入边界点集
+                    edge_x.append(x[k])
+                    edge_y.append(y[k])
+                    edge.append(k)
+
+                temp_k = k
+                break
+        # if edge_len < len(edge_x):  # 跳转到新的边界点
+        #     temp_i = i
+        #     i = temp_k
+        #     edge_len = len(edge_x)
+        # else:
+        temp_i = i
+        i = i + 1
+
+    return edge_x, edge_y
+
+
+
+def Create_Boundary(adata: ad.AnnData, clu_mtd: str):
+    idents = adata.obs[clu_mtd]
+    geometry = [xy for xy in zip(adata.obs['array_row'], adata.obs['array_col'])]
+    # first calculate global moransI
+    ad_gdf = GeoDataFrame(adata.obs[clu_mtd], geometry=geometry, copy=True)
+
+    wq = lps.weights.Queen.from_dataframe(ad_gdf)
+    wq.transform = 'r'

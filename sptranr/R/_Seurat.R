@@ -4,14 +4,14 @@ library(cowplot)
 library(Matrix)
 library(Rcpp)
 
-Preprocess_Seurat <- function(seu){
-  seu <- SCTransform(seu, assay = "Spatial",
+Preprocess_Seurat <- function(seu, assay = "Spatial"){
+  seu <- SCTransform(seu, assay = assay,
                          return.only.var.genes = FALSE, verbose = FALSE)
+  seu <- RunPCA(seu, assay = "SCT", verbose = FALSE)
   return(seu)
 }
 
 Cluster_Seurat <- function(seu){
-  seu <- RunPCA(seu, assay = "SCT", verbose = FALSE)
   seu <- FindNeighbors(seu, reduction = "pca", dims = 1:30)
   seu <- FindClusters(seu, verbose = FALSE)
   seu <- RunUMAP(seu, reduction = "pca", dims = 1:30)
@@ -21,6 +21,41 @@ Cluster_Seurat <- function(seu){
 Estimation_Seurat <- function(seu){
    de_markers <-FindAllMarkers(seu, assay = "SCT")
    return(de_markers)
+}
+
+Deconvolution_Seurat <- function(seu.sp, seu.sc){
+  anchors <- FindTransferAnchors(reference = seu.sc, query = seu.sp, normalization.method = "SCT")
+  predictions.assay <- TransferData(anchorset = anchors, refdata = seu.sc$orig.ident, prediction.assay = TRUE,
+                                    weight.reduction = seu.sp[["pca"]], dims = 1:30)
+  return(predictions.assay)
+}
+
+Save_spt_from_Seurat.dcv <- function(sptFile, h5data, predictions.assay){
+
+  results <- Matrix(t(predictions.assay@data[-dim(predictions.assay@data)[1],]))
+  results <- as(results, "dgeMatrix")
+  cell_type_names <- rownames(predictions.assay)
+  h5createGroup(sptFile, paste0(h5data, '/deconv/Seurat'))
+
+  # save 1d weights
+  Create_spt_array1d(sptFile,
+                     arr = results@x,
+                     sptloc = paste0(h5data, '/deconv/Seurat/weights'),
+                     mode = 'double')
+  # save shape
+  Create_spt_array1d(sptFile,
+                     arr = results@Dim,
+                     sptloc = paste0(h5data, '/deconv/Seurat/shape'),
+                     mode = 'integer')
+  # save dim names
+  Create_spt_array1d(sptFile,
+                     arr = rownames(results),
+                     sptloc = paste0(h5data, '/deconv/Seurat/barcodes'),
+                     mode = 'character')
+  Create_spt_array1d(sptFile,
+                     arr = colnames(results),
+                     sptloc = paste0(h5data, '/deconv/Seurat/cell_type'),
+                     mode = 'character')
 }
 
 scQC <- function(seu,lg=100,hg=100000,lm=-Inf,hm=0.1){

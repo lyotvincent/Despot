@@ -556,6 +556,38 @@ Save_spt_from_Giotto_est <- function(sptFile, spatialgenes, h5data = 'matrix'){
                      mode = "double")
 }
 
+Save_spt_from_Giotto_dcv <- function(sptFile, gobj, h5data = 'matrix'){
+  result <- gobj@spatial_enrichment$DWLS
+
+  barcodes <- result[[1]]
+  result <- result[, -1]
+  cell_type <- colnames(result)
+  result <- as.matrix(result)
+  result <- as(result, "dgeMatrix")
+  h5createGroup(sptFile, paste0(h5data, '/deconv/Giotto'))
+
+  # save 1d weights
+  Create_spt_array1d(sptFile,
+                     arr = result@x,
+                     sptloc = paste0(h5data, '/deconv/Giotto/weights'),
+                     mode = 'double')
+  # save shape
+  Create_spt_array1d(sptFile,
+                     arr = result@Dim,
+                     sptloc = paste0(h5data, '/deconv/Giotto/shape'),
+                     mode = 'integer')
+  # save dim names
+  Create_spt_array1d(sptFile,
+                     arr = barcodes,
+                     sptloc = paste0(h5data, '/deconv/Giotto/barcodes'),
+                     mode = 'character')
+  Create_spt_array1d(sptFile,
+                     arr = cell_type,
+                     sptloc = paste0(h5data, '/deconv/Giotto/cell_type'),
+                     mode = 'character')
+
+}
+
 # Seurat to SingleCellExperiment object
 Tran_Seurat_to_SCE <-function(seu_obj){
   Bayes <- as.SingleCellExperiment(seu_obj)
@@ -729,10 +761,10 @@ Load_spt_to_Giotto <- function(sptFile, h5data = 'matrix',
                                     show_plot = FALSE)
   h5_obj <- rhdf5::h5read(sptFile, h5data)
   h5img <- rhdf5::h5read(sptFile, "sptimages")
-  colData <- data.frame(row.names = h5img$coordinates$index,
+  spatial_locs <- data.frame(row.names = h5img$coordinates$index,
                         sdimx = h5img$coordinates$imagerow,
                         sdimy = h5img$coordinates$imagecol)
-  colData <- colData[order(rownames(colData)),]
+  spatial_locs <- spatial_locs[order(rownames(spatial_locs)),]
   if(h5data == 'matrix'){
     dat <- sparseMatrix(i = h5_obj$indices[] + 1,
                         p = h5_obj$indptr[],
@@ -741,7 +773,7 @@ Load_spt_to_Giotto <- function(sptFile, h5data = 'matrix',
                         dimnames = list(h5_obj$features$name, h5_obj$barcodes),
                         repr = "C")
     gobj <- createGiottoObject(raw_exprs = dat,
-                               spatial_locs = colData,
+                               spatial_locs = spatial_locs,
                                instructions = ginst)
   }
   else if(h5data == "SpotClean_mat"){
@@ -752,7 +784,7 @@ Load_spt_to_Giotto <- function(sptFile, h5data = 'matrix',
                         dimnames = list(h5_obj$features$name, h5_obj$barcodes),
                         repr = "C")
     gobj <- createGiottoObject(raw_exprs = dat,
-                               spatial_locs = colData,
+                               spatial_locs = spatial_locs,
                                instructions = ginst)
   }
   else if(h5data == "SPCS_mat"){
@@ -763,7 +795,7 @@ Load_spt_to_Giotto <- function(sptFile, h5data = 'matrix',
                         dimnames = list(h5_obj$features$name, h5_obj$barcodes),
                         repr = "C")
     gobj <- createGiottoObject(raw_exprs = dat,
-                               spatial_locs = colData,
+                               spatial_locs = spatial_locs,
                                instructions = ginst)
   }
   return(gobj)
