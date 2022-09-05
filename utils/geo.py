@@ -187,7 +187,7 @@ def Fscore_Comparison(Best_dict: dict, Groups):
             group = Groups[mtd]
             Giotto_max = Giotto_max.append(pd.DataFrame(group.max()).T)
     ground_truth_max = pd.DataFrame(ground_truth_max.max()).T
-    ground_truth_max.index=['ground_truth']
+    ground_truth_max.index = ['ground_truth']
     Seurat_max = pd.DataFrame(Seurat_max.max()).T
     Seurat_max.index = ['Seurat']
     ground_truth_max = ground_truth_max.append(Seurat_max)
@@ -197,26 +197,35 @@ def Fscore_Comparison(Best_dict: dict, Groups):
     cell_type = []
     fscore = []
     for key in Best_dict.keys():
-       cell_type.append(key)
-       fscore.append(Best_dict[key][0])
+        cell_type.append(key)
+        fscore.append(Best_dict[key][0])
     spTRS_max = pd.DataFrame(data=fscore, index=cell_type, columns=['spTRS']).T
     res = ground_truth_max.append(spTRS_max)
     return res
 
 
-def Show_best_group(sptFile, mtd_chain:str, cell_type, domain, fscore, figname):
+def Show_best_group(sptFile, cell_type, fscore, domain, mtd_chain: str, figname):
     mtds = mtd_chain.split('+')
     dct_mtd, dcv_mtd, clu_mtd = mtds[0], mtds[1], mtds[2]
     abd_name = dct_mtd + '_' + dcv_mtd + '_' + clu_mtd + '_' + cell_type
     adata = Load_spt_to_AnnData(sptFile, count=dct_mtd)
     adata.obs[abd_name] = adata.obsm[dcv_mtd][cell_type]
     fig, axs = plt.subplots(1, 2, figsize=(6, 3), constrained_layout=True)
-    sc.pl.spatial(adata, color=clu_mtd, ax=axs[0])
-    sc.pl.spatial(adata, color=abd_name, ax=axs[1])
+    sc.pl.spatial(adata, color=clu_mtd, ax=axs[0], show=False)
+    sc.pl.spatial(adata, color=abd_name, ax=axs[1], show=False)
     axs[1].set_title(dcv_mtd)
     fig.suptitle("find {0} locate in {1} using methods chain:"
                  "\n{2}, F-score={3}".format(cell_type, str(domain), abd_name, fscore))
     fig.savefig(figname, dpi=400)
+
+
+def Show_bash_best_group(sptFile, Best_dict, folder):
+    if not os.path.isdir(folder):
+        os.makedirs(folder)
+    cell_types = list(Best_dict.keys())
+    for cell_type in cell_types:
+        Best_item = Best_dict[cell_type]
+        Show_best_group(sptFile, cell_type, Best_item[0], Best_item[1], Best_item[2], folder + "/" + cell_type + ".eps")
 
 
 def distance(a, b):
@@ -275,8 +284,8 @@ def Alpha_Shape6(points: pd.DataFrame):
             G.add_edge(i, neighbors[j])
     cc = nx.connected_components(G)
 
-
     return edge_x, edge_y
+
 
 def Alpha_Shape(points: pd.DataFrame, alpha):
     x = points['array_row']
@@ -342,9 +351,12 @@ def Alpha_Shape(points: pd.DataFrame, alpha):
 
             # 筛选以圆心R1为质点，边长为 2*alpha 的方形区域内的点集
             inSquare = np.array([t for t, v in enumerate(x < cicle1_x + alpha) if v == True])
-            inSquare = inSquare[[t for t, v in enumerate(points.loc[inSquare, 'array_row'] > cicle1_x - alpha) if v == True]]
-            inSquare = inSquare[[t for t, v in enumerate(points.loc[inSquare, 'array_col'] < cicle1_y + alpha) if v == True]]
-            inSquare = inSquare[[t for t, v in enumerate(points.loc[inSquare, 'array_col'] > cicle1_y - alpha) if v == True]]
+            inSquare = inSquare[
+                [t for t, v in enumerate(points.loc[inSquare, 'array_row'] > cicle1_x - alpha) if v == True]]
+            inSquare = inSquare[
+                [t for t, v in enumerate(points.loc[inSquare, 'array_col'] < cicle1_y + alpha) if v == True]]
+            inSquare = inSquare[
+                [t for t, v in enumerate(points.loc[inSquare, 'array_col'] > cicle1_y - alpha) if v == True]]
             if len(inSquare) != 0:
                 for j in inSquare:
                     if j == i or j == k:  # 点集内的点 除去当前点i 和 备选点k
@@ -356,9 +368,12 @@ def Alpha_Shape(points: pd.DataFrame, alpha):
                             break
             # 筛选 圆R2
             inSquare = np.array([t for t, v in enumerate(x < cicle2_x + alpha) if v == True])
-            inSquare = inSquare[[t for t, v in enumerate(points.loc[inSquare, 'array_row'] > cicle2_x - alpha) if v == True]]
-            inSquare = inSquare[[t for t, v in enumerate(points.loc[inSquare, 'array_col'] < cicle2_y + alpha) if v == True]]
-            inSquare = inSquare[[t for t, v in enumerate(points.loc[inSquare, 'array_col'] > cicle2_y - alpha) if v == True]]
+            inSquare = inSquare[
+                [t for t, v in enumerate(points.loc[inSquare, 'array_row'] > cicle2_x - alpha) if v == True]]
+            inSquare = inSquare[
+                [t for t, v in enumerate(points.loc[inSquare, 'array_col'] < cicle2_y + alpha) if v == True]]
+            inSquare = inSquare[
+                [t for t, v in enumerate(points.loc[inSquare, 'array_col'] > cicle2_y - alpha) if v == True]]
             if len(inSquare) != 0:
                 for j in inSquare:  # 与原两个点的坐标点一样
                     if j == i or j == k or distance((x[j], y[j]), (x[i], y[i])) == 0:
@@ -391,7 +406,6 @@ def Alpha_Shape(points: pd.DataFrame, alpha):
         i = i + 1
 
     return edge_x, edge_y
-
 
 
 def Create_Boundary(adata: ad.AnnData, clu_mtd: str):
