@@ -41,7 +41,7 @@ def Pip_decont(sptFile, method='none', force=False):
         return
 
 
-# we provide 5 inline methods for clustering and supports Squidpy and Giotto
+# we provide 7 inline methods for clustering and supports Squidpy and Giotto
 def Pip_cluster(sptFile, h5data, method='leiden', force=False, tif=None):
     method_list = ['leiden', 'SpaGCN', 'stlearn', 'Seurat', 'BayesSpace', 'Giotto', 'Squidpy']
     with h5.File(sptFile, 'r') as f:
@@ -125,7 +125,8 @@ def Pip_estimate(sptFile, h5data='matrix', method='SpatialDE', force=False):
 
 
 def Pip_deconv(sptFile, h5data='matrix', method="stereoScope", name='temp', force=False):
-    method_list = ['Cell2Location', 'SPOTlight', 'spacexr', 'stereoScope']
+    method_list = ['Cell2Location', 'SPOTlight', 'SPOTlight_vae', 'SPOTlight_es','spacexr', 'spacexr_es',
+                   'stereoScope', 'Seurat', 'Seurat_es', 'Giotto', 'stereoScope_es', 'stereoScope_na']
     with h5.File(sptFile, 'r') as f:
         if method not in method_list:
             print("Deconvolution method:{0} has not been supported yet, default `stereoScope`.".format(method))
@@ -134,13 +135,41 @@ def Pip_deconv(sptFile, h5data='matrix', method="stereoScope", name='temp', forc
             print("Deconvolution with " + method + " has done, skip it.")
             return
     if method == 'spacexr':
-        # Using R scripts
-        from dcv.spacexr import spacexr_pp_VAE
-        spacexr_pp_VAE(sptFile, tempdir="h5ads", h5data=h5data, name=name)
+        do_vae = True
+        with h5.File(sptFile, 'r') as f:
+            if ('sc-ref' in f) and (force == False):
+                do_vae = False
+        if do_vae:
+            from dcv.spacexr import spacexr_pp_VAE
+            spacexr_pp_VAE(sptFile)
         os.system("Rscript dcv/Deconv_spacexr.R")
+    elif method == 'spacexr_es':
+        from dcv.spacexr import spacexr_pp_EasySample
+        spacexr_pp_EasySample(sptFile)
+        os.system("Rscript dcv/Deconv_spacexr_es.R")
     elif method == 'SPOTlight':
         # Using R scripts
         os.system("Rscript dcv/Deconv_SPOTlight.R")
+    elif method == 'SPOTlight_es':
+        do_es = True
+        with h5.File(sptFile, 'r') as f:
+            if ('sc-ref-es' in f) and (force == False):
+                do_es = False
+        if do_es:
+            from dcv.spacexr import spacexr_pp_EasySample
+            spacexr_pp_EasySample(sptFile)
+        # Using EasyEnsample for SPOTlight reference
+        os.system("Rscript dcv/Deconv_SPOTlight_es.R")
+    elif method == 'SPOTlight_vae':
+        do_vae = True
+        with h5.File(sptFile, 'r') as f:
+            if ('sc-ref' in f) and (force == False):
+                do_vae = False
+        if do_vae:
+            from dcv.spacexr import spacexr_pp_VAE
+            spacexr_pp_VAE(sptFile)
+        # Using VAE for SPOTLight reference
+        os.system("Rscript dcv/Deconv_SPOTlight_vae.R")
     elif method == 'stereoScope':
         from dcv.stereoScope import StereoScope_pp_VAE, StereoScope_run, StereoScope_pp_EasySample
         StereoScope_pp_VAE(sptFile, tempdir="h5ads", h5data=h5data, name=name)
@@ -150,10 +179,30 @@ def Pip_deconv(sptFile, h5data='matrix', method="stereoScope", name='temp', forc
         Wfile = "h5ads/" + name + "_res/spt_data/" + Wfile
         Save_spt_from_StereoScope(sptFile, Wfile, h5data, name='StereoScope')
         os.remove(Wfile)
+    elif method == 'stereoScope_es':
+        # stereoScope_na represents using easy sample in single-cell data
+        from dcv.stereoScope import StereoScope_pp_VAE, StereoScope_run, StereoScope_pp_EasySample
+        StereoScope_pp_EasySample(sptFile, h5data=h5data)
+        StereoScope_run(stereo_dir="h5ads/references/" + name, out_dir="h5ads/" + name + "_res")
+        Wfile = os.listdir("h5ads/" + name + "_res/spt_data")[0]
+        Wfile = "h5ads/" + name + "_res/spt_data/" + Wfile
+        Save_spt_from_StereoScope(sptFile, Wfile, h5data, name='StereoScope_es')
+    elif method == 'stereoScope_na':
+        # stereoScope_na represents no preprocessing in single-cell data
+        from dcv.stereoScope import StereoScope_pp_na, StereoScope_run
+        StereoScope_pp_na(sptFile, h5data=h5data)
+        StereoScope_run(stereo_dir="h5ads/references/" + name, out_dir="h5ads/" + name + "_res")
+        Wfile = os.listdir("h5ads/" + name + "_res/spt_data")[0]
+        Wfile = "h5ads/" + name + "_res/spt_data/" + Wfile
+        Save_spt_from_StereoScope(sptFile, Wfile, h5data, name='StereoScope_na')
     elif method == 'Cell2Location':
         from dcv.cell2location import Cell2Location_run
         adata = Cell2Location_run(sptFile)
         Save_spt_from_Cell2Location(sptFile, adata, h5data)
+    elif method == 'Seurat':
+        os.system("Rscript dcv/Deconv_Seurat.R")
+    elif method == 'Giotto':
+        os.system("Rscript dcv/Deconv_Giotto.R")
 
 
 def Pip_cluVisual(sptFile, h5data, imgPath):
@@ -263,7 +312,20 @@ def spTRS_Estimate(sptFile, cfg, force=False):
 
 
 def spTRS_Deconv(sptFile, cfg, name='temp', force=False):
-    # os.system("Rscript sc/Generate_scRNA-seq.R")
+    do_scRNA_seq = False
+    with h5.File(sptFile, 'r') as f:
+        if 'scRNA_seq' not in f:
+            print("scRNA_seq data not in sptFile, Generating it...")
+            do_scRNA_seq = True
+        else:
+            print("Found scRNA_seq data in sptFile.")
+    if do_scRNA_seq:
+        if cfg['TabulaType'] == '':
+            print("Using scRNA-seq provided by users...")
+            os.system("Rscript sc/Generate_scRNA-seq.R")
+        else:
+            print("Using Tabula Data...")
+            os.system("Rscript sc/Generate_TabulaData.R")
     h5datas = []
     # whether need Decontamination
     Decont = cfg['Decontamination']

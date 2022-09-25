@@ -25,9 +25,9 @@
   "load_hires": true,
   "load_fullres": false,
   "fullres_path": "",
-  "Decontamination": ["none", "SpotClean", "SPCS"],
-  "Clustering": ["BayesSpace", "SpaGCN", "Seurat", "leiden", "Giotto"],
-  "Estimation": ["SPARK"],
-  "Deconvolution": ["SPOTlight", "spacexr", "Cell2Location"],
+  "Decontamination": ["none","SpotClean","SPCS"],
+  "Clustering": ["Seurat", "Giotto", "BayesSpace", "SpaGCN", "leiden"],
+  "Estimation": ["SPARK", "SpaGCN"],
+  "Deconvolution": ["stereoScope_na"],
   "Enhancement": "BayesSpace"
 }

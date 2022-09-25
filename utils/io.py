@@ -166,8 +166,8 @@ def Load_spt_to_AnnData(sptFile: str,
                 print(dcv)
                 shape = h5dcv[dcv]['shape']
                 weights = np.array(h5dcv[dcv]['weights']).reshape(shape[1], shape[0]).T
-                barcodes = np.array(h5dcv[dcv]['barcodes'], dtype='str')
-                cell_type = np.array(h5dcv[dcv]['cell_type'], dtype='str')
+                barcodes = np.array(h5dcv[dcv]['barcodes'][:], dtype='str')
+                cell_type = np.array(h5dcv[dcv]['cell_type'][:], dtype='str')
                 w = pd.DataFrame(weights, index=barcodes, columns=cell_type)
                 print(w)
                 adata.obsm[dcv] = w
@@ -175,10 +175,10 @@ def Load_spt_to_AnnData(sptFile: str,
     return adata
 
 
-def Load_spt_sc_to_AnnData(sptFile):
+def Load_spt_sc_to_AnnData(sptFile, h5data='scRNA_seq'):
     h5_obj = h5.File(sptFile, 'r')
     # the scRNA-seq Data is saved in 'scRNA_seq', using Sparse Matrix
-    scRNA_seq = h5_obj['scRNA_seq']
+    scRNA_seq = h5_obj[h5data]
     data = scRNA_seq['data']
     indices = scRNA_seq['indices']
     indptr = scRNA_seq['indptr']
@@ -194,7 +194,8 @@ def Load_spt_sc_to_AnnData(sptFile):
     var = pd.DataFrame(index=np.array(scRNA_seq['features']['name'][:], dtype='str'))
     # create AnnData
     adata = ad.AnnData(X, obs=obs, var=var)
-    adata.uns['HVGs'] = np.array(scRNA_seq['features']['HVGs'][:], dtype='str')
+    if 'HVGs' in scRNA_seq['features']:
+        adata.uns['HVGs'] = np.array(scRNA_seq['features']['HVGs'][:], dtype='str')
     return adata
 
 
@@ -446,43 +447,43 @@ def Save_spt_from_Cell2Location(sptFile, adata, h5data='matrix'):
     print("Deconvolution with `Cell2Location` finished, Weight saved in /" + h5data + '/deconv/Cell2Location')
 
 
-def Save_spt_from_ref(sptFile, reference: pd.DataFrame, label: pd.DataFrame):
+def Save_spt_from_ref(sptFile, reference: pd.DataFrame, label: pd.DataFrame, name='sc-ref'):
     with h5.File(sptFile, 'a') as f:
-        if 'sc-ref' not in f:
-            f.create_group('sc-ref')
+        if name not in f:
+            f.create_group(name)
         else:
-            if 'sc-ref/idents/annotation' in f:
-                del f['sc-ref/idents/annotation']
-            if 'sc-ref/idents' in f:
-                del f['sc-ref/idents']
-            if 'sc-ref/features/name' in f:
-                del f['sc-ref/features/name']
-            if 'sc-ref/features' in f:
-                del f['sc-ref/features']
-            if 'sc-ref/barcodes' in f:
-                del f['sc-ref/barcodes']
-            if 'sc-ref/shape' in f:
-                del f['sc-ref/shape']
-            if 'sc-ref/indptr' in f:
-                del f['sc-ref/indptr']
-            if 'sc-ref/indices' in f:
-                del f['sc-ref/indices']
-            if 'sc-ref/data' in f:
-                del f['sc-ref/data']
-            if 'sc-ref' in f:
-                del f['sc-ref']
-            f.create_group('sc-ref')
+            if name + '/idents/annotation' in f:
+                del f[name + '/idents/annotation']
+            if name + '/idents' in f:
+                del f[name + '/idents']
+            if name + '/features/name' in f:
+                del f[name + '/features/name']
+            if name + '/features' in f:
+                del f[name + '/features']
+            if name + '/barcodes' in f:
+                del f[name + '/barcodes']
+            if name + '/shape' in f:
+                del f[name + '/shape']
+            if name + '/indptr' in f:
+                del f[name + '/indptr']
+            if name + '/indices' in f:
+                del f[name + '/indices']
+            if name + '/data' in f:
+                del f[name + '/data']
+            if name in f:
+                del f[name]
+            f.create_group(name)
         ref = csr_matrix(reference).T
-        f.create_dataset('sc-ref/data', data=ref.data, dtype='float32')
-        f.create_dataset('sc-ref/indices', data=ref.indices, dtype='int')
-        f.create_dataset('sc-ref/indptr', data=ref.indptr, dtype='int')
+        f.create_dataset(name + '/data', data=ref.data, dtype='float32')
+        f.create_dataset(name + '/indices', data=ref.indices, dtype='int')
+        f.create_dataset(name + '/indptr', data=ref.indptr, dtype='int')
         shape = ref.shape
-        f.create_dataset('sc-ref/shape', data=shape, dtype='int')
-        f.create_dataset('sc-ref/barcodes', data=reference.index, dtype='int')
-        f.create_group('sc-ref/features')
-        name = list(np.array(reference.columns, dtype='S'))
+        f.create_dataset(name + '/shape', data=shape, dtype='int')
+        f.create_dataset(name + '/barcodes', data=reference.index, dtype='int')
+        f.create_group(name + '/features')
+        refname = list(np.array(reference.columns, dtype='S'))
         annotation = list(np.array(label['annotation'], dtype='S'))
-        f.create_dataset('sc-ref/features/name', data=name)
-        f.create_group('sc-ref/idents')
-        f.create_dataset('sc-ref/idents/annotation', data=annotation)
-    print("VAE references finished, reference scRNA-seq data saved in sc-ref.")
+        f.create_dataset(name + '/features/name', data=refname)
+        f.create_group(name + '/idents')
+        f.create_dataset(name + '/idents/annotation', data=annotation)
+    print("references finished, reference scRNA-seq data saved in " + name)

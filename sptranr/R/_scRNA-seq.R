@@ -145,8 +145,7 @@ Save_scRNAseq_to_spt <- function(sptFile, sce){
 
   # create DataSets for matrix
   mat <- sce@assays@data@listData$counts
-  mat <- Matrix(mat,
-                dimnames = dimnames(mat))
+  mat <- Matrix(mat, nrow = dim(mat)[1], ncol = dim(mat)[2], dimnames = dimnames(mat))
 
   # save 1d weights
   Create_spt_array1d(sptFile,

@@ -19,31 +19,36 @@ Deconvolution_spacexr <- function(sr, ref){
   return(rctd)
 }
 
-Save_spt_from_spacexr <- function(sptFile, h5data, rctd){
+Save_spt_from_spacexr <- function(sptFile, h5data, rctd, pp_mtd="vae"){
   results <- rctd@results
   # normalize the cell type proportions to sum to 1.
   norm_weights <- normalize_weights(results$weights)
   cell_type_names <- rctd@cell_type_info$info[[2]] #list of cell type names
-  h5createGroup(sptFile, paste0(h5data, '/deconv/spacexr'))
+  if(pp_mtd == "vae"){
+    mtd <- 'spacexr'
+  } else if(pp_mtd == "es"){
+    mtd <- 'spacexr_es'
+  }
+  h5createGroup(sptFile, paste0(h5data, '/deconv/', mtd))
 
   # save 1d weights
   Create_spt_array1d(sptFile,
                      arr = norm_weights@x,
-                     sptloc = paste0(h5data, '/deconv/spacexr/weights'),
+                     sptloc = paste0(h5data, '/deconv/', mtd, '/weights'),
                      mode = 'double')
   # save shape
   Create_spt_array1d(sptFile,
                      arr = norm_weights@Dim,
-                     sptloc = paste0(h5data, '/deconv/spacexr/shape'),
+                     sptloc = paste0(h5data, '/deconv/', mtd, '/shape'),
                      mode = 'integer')
   # save dim names
   Create_spt_array1d(sptFile,
                      arr = rownames(norm_weights),
-                     sptloc = paste0(h5data, '/deconv/spacexr/barcodes'),
+                     sptloc = paste0(h5data, '/deconv/', mtd,'/barcodes'),
                      mode = 'character')
   Create_spt_array1d(sptFile,
                      arr = colnames(norm_weights),
-                     sptloc = paste0(h5data, '/deconv/spacexr/cell_type'),
+                     sptloc = paste0(h5data, '/deconv/', mtd, '/cell_type'),
                      mode = 'character')
 }
 

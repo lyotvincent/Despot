@@ -53,6 +53,7 @@ Save_gt_to_spt <- function(sptFile, ground.truth, ground.sep=',', ground.name='g
 Save_10X_to_spt <- function(dir, sptFile, filtered.matrix = T, name = "",
                             ground.truth = NULL, ground.sep = ",",
                             ground.name = "ground_truth", save.hires = F){
+  library(stringr)
   # Save name
   if(length(name) != 0){
     Create_spt_array1d(sptFile, name, "name", "character")
@@ -82,10 +83,10 @@ Save_10X_to_spt <- function(dir, sptFile, filtered.matrix = T, name = "",
       colnames(h5_obj$features) <- "name"
       mtx <- Matrix::readMM(paste0(h5dir, "/matrix.mtx.gz"))
       mtx <- as(mtx, "dgCMatrix")
-      mtx@Dimnames[[1]] <- h5_obj$features$names
-      mtx@Dimnames[[2]] <- h5_obj$barcodes
+      mtx@Dimnames[[1]] <- toupper(h5_obj$features$names)
+      mtx@Dimnames[[2]] <- toupper(h5_obj$barcodes)
       mtx <- mtx[, order(mtx@Dimnames[[2]])]
-      h5_obj$barcodes <- h5_obj$barcodes[order(h5_obj$barcodes)]
+      h5_obj$barcodes <- toupper(h5_obj$barcodes[order(h5_obj$barcodes)])
       h5_obj$data <- mtx@x
       h5_obj$indices <- mtx@i
       h5_obj$indptr <- mtx@p
@@ -146,14 +147,14 @@ Save_10X_to_spt <- function(dir, sptFile, filtered.matrix = T, name = "",
   }
 
   # save gene expression
-  Create_spt_array1d(sptFile, h5_obj$barcodes, "matrix/barcodes", "character")
+  Create_spt_array1d(sptFile, toupper(h5_obj$barcodes), "matrix/barcodes", "character")
   Create_spt_array1d(sptFile, h5_obj$data, "matrix/data", "integer")
   Create_spt_array1d(sptFile, h5_obj$indices, "matrix/indices", "integer")
   Create_spt_array1d(sptFile, h5_obj$indptr, "matrix/indptr", "integer")
   Create_spt_array1d(sptFile, h5_obj$shape, "matrix/shape", "integer")
 
   for(fea in attr(h5_obj$features, "names")){
-    Create_spt_array1d(sptFile, h5_obj$features[[fea]],
+    Create_spt_array1d(sptFile, toupper(h5_obj$features[[fea]]),
                        paste0("matrix/features/", fea), "character")
   }
 
@@ -163,7 +164,7 @@ Save_10X_to_spt <- function(dir, sptFile, filtered.matrix = T, name = "",
                        paste0("sptimages/coordinates/", coo), "integer")
   }
   index <- rownames(coord)
-  Create_spt_array1d(sptFile, index,
+  Create_spt_array1d(sptFile, toupper(index),
                      "sptimages/coordinates/index", "character")
   Create_spt_array1d(sptFile, img@spot.radius, "sptimages/spot_radius", "double")
 }
@@ -247,13 +248,17 @@ Load_spt_to_Seurat <- function(sptFile, imgdir, h5data='matrix'){
 
 Load_h5_to_Seurat <- function(h5dir, h5data = 'matrix', assay = "Spatial"){
   library(Seurat)
+  library(stringr)
+  h5_obj <- rhdf5::h5read(h5dir, h5data)
+  feature.name <- toupper(h5_obj$features$name)
+  barcodes <- toupper(h5_obj$barcodes)
   if(h5data == 'matrix'){
     h5_obj <- rhdf5::h5read(h5dir, h5data)
     dat <- sparseMatrix(i = h5_obj$indices[] + 1,
                         p = h5_obj$indptr[],
                         x = as.numeric(h5_obj$data[]),
                         dims = h5_obj$shape[],
-                        dimnames = list(h5_obj$features$name, h5_obj$barcodes),
+                        dimnames = list(feature.name, barcodes),
                         repr = "C")
     seu <- CreateSeuratObject(counts = dat, project = "Seurat", assay = assay)
     # for(fea in c('feature_type', 'genome', 'id', 'name')){
@@ -266,7 +271,7 @@ Load_h5_to_Seurat <- function(h5dir, h5data = 'matrix', assay = "Spatial"){
                         p = h5_obj$indptr[],
                         x = as.numeric(h5_obj$data[]),
                         dims = h5_obj$shape[],
-                        dimnames = list(h5_obj$features$name, h5_obj$barcodes),
+                        dimnames = list(feature.name, barcodes),
                         repr = "C")
     seu <- CreateSeuratObject(counts = dat, project = "Seurat", assay = assay)
   }
@@ -276,17 +281,7 @@ Load_h5_to_Seurat <- function(h5dir, h5data = 'matrix', assay = "Spatial"){
                         p = h5_obj$indptr[],
                         x = as.numeric(h5_obj$data[]),
                         dims = h5_obj$shape[],
-                        dimnames = list(h5_obj$features$name, h5_obj$barcodes),
-                        repr = "C")
-    seu <- CreateSeuratObject(counts = dat, project = "Seurat", assay = assay)
-  }
-  else if(h5data == 'SPCS_mat'){
-    h5_obj <- rhdf5::h5read(h5dir, h5data)
-    dat <- sparseMatrix(i = h5_obj$indices[] + 1,
-                        p = h5_obj$indptr[],
-                        x = as.numeric(h5_obj$data[]),
-                        dims = h5_obj$shape[],
-                        dimnames = list(h5_obj$feature_name, h5_obj$barcodes),
+                        dimnames = list(feature.name, barcodes),
                         repr = "C")
     seu <- CreateSeuratObject(counts = dat, project = "Seurat", assay = assay)
   }
@@ -623,6 +618,11 @@ Load_spt_to_SCE <- function(sptFile, h5data = 'matrix'){
                        imagecol = h5img$coordinates$imagecol)
     colData <- colData[order(colData$spot),]
     colData <- colData[colData$spot %in% h5_obj$barcodes, ]
+    for(ident in attr(h5_obj$idents, "names")){
+      id <- data.frame(h5_obj$idents[[ident]])
+      colnames(id) <- ident
+      colData <- cbind(colData, id)
+    }
     # some datasets may not provide gene_id.
     if("id" %in% attr(h5_obj$features, "names")){
       rowData <- DataFrame(gene_id = h5_obj$features$id,
@@ -755,11 +755,15 @@ Load_spt_to_Giotto <- function(sptFile, h5data = 'matrix',
                                python_path = '~/anaconda3/envs/spatial/bin/python',
                                temp_dir = 'h5ads'){
   library(Giotto)
+  library(SeuratObject)
+  library(stringr)
   ginst <- createGiottoInstructions(python_path = python_path,
                                     save_dir = temp_dir,
                                     save_plot = FALSE,
                                     show_plot = FALSE)
   h5_obj <- rhdf5::h5read(sptFile, h5data)
+  feature.name <- toupper(h5_obj$features$name)
+  barcodes <- toupper(h5_obj$barcodes)
   h5img <- rhdf5::h5read(sptFile, "sptimages")
   spatial_locs <- data.frame(row.names = h5img$coordinates$index,
                         sdimx = h5img$coordinates$imagerow,
@@ -770,9 +774,10 @@ Load_spt_to_Giotto <- function(sptFile, h5data = 'matrix',
                         p = h5_obj$indptr[],
                         x = as.numeric(h5_obj$data[]),
                         dims = h5_obj$shape[],
-                        dimnames = list(h5_obj$features$name, h5_obj$barcodes),
+                        dimnames = list(feature.name, barcodes),
                         repr = "C")
-    gobj <- createGiottoObject(raw_exprs = dat,
+    obj <- CreateSeuratObject(dat)
+    gobj <- createGiottoObject(raw_exprs = obj@assays$RNA@counts,
                                spatial_locs = spatial_locs,
                                instructions = ginst)
   }
@@ -781,9 +786,10 @@ Load_spt_to_Giotto <- function(sptFile, h5data = 'matrix',
                         p = h5_obj$indptr[],
                         x = as.numeric(h5_obj$data[]),
                         dims = h5_obj$shape[],
-                        dimnames = list(h5_obj$features$name, h5_obj$barcodes),
+                        dimnames = list(feature.name, barcodes),
                         repr = "C")
-    gobj <- createGiottoObject(raw_exprs = dat,
+    obj <- CreateSeuratObject(dat)
+    gobj <- createGiottoObject(raw_exprs = obj@assays$RNA@counts,
                                spatial_locs = spatial_locs,
                                instructions = ginst)
   }
@@ -792,9 +798,10 @@ Load_spt_to_Giotto <- function(sptFile, h5data = 'matrix',
                         p = h5_obj$indptr[],
                         x = as.numeric(h5_obj$data[]),
                         dims = h5_obj$shape[],
-                        dimnames = list(h5_obj$features$name, h5_obj$barcodes),
+                        dimnames = list(feature.name, barcodes),
                         repr = "C")
-    gobj <- createGiottoObject(raw_exprs = dat,
+    obj <- CreateSeuratObject(dat)
+    gobj <- createGiottoObject(raw_exprs = obj@assays$RNA@counts,
                                spatial_locs = spatial_locs,
                                instructions = ginst)
   }
@@ -805,10 +812,13 @@ Load_spt_to_Giotto <- function(sptFile, h5data = 'matrix',
 Load_spt_to_SE <- function(sptFile, h5data = 'matrix'){
   library(SpatialExperiment)
   h5mat <- rhdf5::h5read(sptFile, h5data)
+  feature.name <- toupper(h5mat$features$name)
+  barcodes <- toupper(h5mat$barcodes)
   h5img <- rhdf5::h5read(sptFile, "sptimages")
   # read in spatial coordinates
   coord <- data.frame(h5img$coordinates,
-                      row.names = h5mat$barcodes)
+                      row.names = h5img$coordinates$index)
+  coord <- coord[order(h5img$coordinates$index),]
   # read in counts
   dat <- sparseMatrix(i = h5mat$indices[] + 1,
                       p = h5mat$indptr[],
@@ -819,15 +829,19 @@ Load_spt_to_SE <- function(sptFile, h5data = 'matrix'){
   dat_assay <- S4Vectors::SimpleList(dat)
   # construct observation & feature metadata
   if(h5data == 'matrix'){
-    rowData <- DataFrame(symbol = h5mat$features$name)
+    rowData <- DataFrame(symbol = feature.name)
   }
   else{
-    rowData <- DataFrame(symbol = h5mat$features$name)
+    rowData <- DataFrame(symbol = feature.name)
   }
 
   # barcodes data
-  colData <- DataFrame(Barcode = h5mat$barcodes)
-
+  colData <- DataFrame(Barcode = barcodes)
+  for(ident in attr(h5mat$idents, "names")){
+    id <- data.frame(h5mat$idents[[ident]])
+    colnames(id) <- ident
+    colData <- cbind(colData, id)
+  }
   # read in images
   rgb <- as.raster(h5img$lowres)
   rgb <- SpatialExperiment::SpatialImage(rgb)

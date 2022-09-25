@@ -1,6 +1,6 @@
 from utils.common import *
 from utils.io import *
-from utils.scdg import Make_References, Save_tsv_from_ref
+from utils.scdg import Make_References, Save_tsv_from_ref, Easy_Sample
 
 def Preprocess_hippo(pth, odir):
     ds = lp.connect(pth)
@@ -258,45 +258,24 @@ def myPreprocess(loom_pth, out_dir, standard_size=50, label='Celltype_1',add_fil
                  )
     ds.close()
 
-# just use easy down sampling to get scRNA-seq references
-def Easy_Sample(scdata, standard_size=25, add_filter=None):
-    # High Variable Genes, saved in scdata.uns['HVGs']
-    HVGs = scdata.uns['HVGs']
+def StereoScope_pp_na(sptFile, tempdir='h5ads', h5data='matrix', standard_size=25 ,add_filter=None, name="temp"):
+    # load spatial data
+    spdata = Load_spt_to_AnnData(sptFile, h5data)
+    # load scRNA-seq data
+    scdata = Load_spt_sc_to_AnnData(sptFile)
+    out_dir = tempdir + "/references/" + name
+    # save scRNA-seq data to tsv
+    Save_tsv_from_scData(out_dir, scdata)
+    # save ST data to tsv
+    Save_tsv_from_spData(out_dir, spdata)
 
-    # filter genes for other conditions
-    if add_filter is None:
-        add_filter = np.ones(len(scdata)).astype(np.bool)
-
-    # all the cell types
-    uni_types = np.unique(scdata.obs['annotation'])
-    use_cells = []
-    for type in uni_types:
-        zidx = np.where((scdata.obs['annotation'] == type) & add_filter)[0]
-        nz = zidx.shape[0]
-
-        if nz < standard_size:
-            print(f"{type} | was discarded due to insufficient number of cells")
-            continue
-        else:
-            zidx = np.random.choice(zidx,size=standard_size,
-                                    replace=False)
-        fromz = zidx.shape[0]
-        use_cells += zidx.tolist()
-
-        print(f"{type} | Used {fromz} cells ")
-
-    use_cells = np.array(use_cells)
-    use_cells = np.sort(use_cells)
-    scdata0 = scdata[use_cells, HVGs]
-    return scdata0
-
-def StereoScope_pp_EasySample(sptFile, out_dir='h5ads', h5data='matrix', standard_size=25 ,add_filter=None):
+def StereoScope_pp_EasySample(sptFile, tempdir='h5ads', h5data='matrix', standard_size=25 ,add_filter=None, name="temp"):
     # load spatial data
     spdata = Load_spt_to_AnnData(sptFile, h5data)
     # load scRNA-seq data
     scdata = Load_spt_sc_to_AnnData(sptFile)
     scdata0 = Easy_Sample(scdata, standard_size, add_filter)
-
+    out_dir = tempdir + "/references/" + name
     # save scRNA-seq data to tsv
     Save_tsv_from_scData(out_dir, scdata0)
     # save ST data to tsv
@@ -325,8 +304,8 @@ def StereoScope_cmd(sc_cnt, sc_labels, st_cnt,
               " -o " + out + \
               " -n " + str(num) + \
               " -scb " + str(scb) + \
-              " -stb " + str(stb) + \
-              " --gpu "
+              " -stb " + str(stb) # + \
+              # " --gpu "
     return cmd
 
 def StereoScope_run(stereo_dir, out_dir='h5ads/res',
@@ -341,4 +320,5 @@ def StereoScope_run(stereo_dir, out_dir='h5ads/res',
                           sce = scdata_epoch, ste = stdata_epoch,
                           scb = scdata_batch, stb = stdata_batch,
                           num=num, gpu=gpu)
+    os.system("python stereoscope/setup.py install --user")
     os.system(cmd)

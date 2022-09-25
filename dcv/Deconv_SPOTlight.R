@@ -24,9 +24,9 @@ for(decont in params$Decontamination){
 
   # read References
   sce <- Load_sptsc_to_SCE(sptFile, "scRNA_seq")
-
+  rownames(sce) <- toupper(rownames(sce))
   sce <- Analysis_scRNA_seq(sce)
-  sce@metadata[['HVGs']] <- rownames(sce)
+  # sce@metadata[['HVGs']] <- rownames(sce)
 
   # Load the spatial transcriptome data to SE: SpatialExperiment
   spe <- Load_spt_to_SE(sptFile, h5data)
@@ -35,5 +35,5 @@ for(decont in params$Decontamination){
   spotlight <- Deconvolution_SPOTlight(spe, sce)
   rownames(spotlight$mat) <- spe@colData$Barcode
   colnames(spotlight$mat) <- attr(table(sce$free_annotation), 'names')
-  Save_spt_from_SPOTlight(sptFile, h5data, spotlight)
+  Save_spt_from_SPOTlight(sptFile, h5data, spotlight, pp_mtd = "raw")
 }

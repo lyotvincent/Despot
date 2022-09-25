@@ -1,5 +1,6 @@
 from utils.io import *
 from utils.preprocess import *
+import seaborn as sns
 
 # report the sptFile, including brief information, umap graphs, deconvolution composition
 def spTRS_report(sptFile, count="matrix"):
@@ -47,16 +48,77 @@ def Show_Origin_histology(sptFile, figname, hires=True, key=None):
     fig.savefig(figname, dpi=400)
 
 
-def Show_Umap(sptFile, figname, is_spatial=True, key='ground_truth', title=None):
-    if is_spatial:
-        adata = Load_spt_to_AnnData(sptFile)
-    else:
-        adata = Load_spt_sc_to_AnnData(sptFile)
+def Show_Spatial(sptFile, figname, key, h5data='matrix', do_cluster=True):
+    adata = Load_spt_to_AnnData(sptFile, h5data)
+    fig, axs = plt.subplots(1, 1, figsize=(4, 3), constrained_layout=True)
+    if do_cluster:
+        adata = Remove_mito_genes(adata)
+        adata = Filter_genes(adata)
+        from clu.Cluster_leiden import Spatial_Cluster_Analysis
+        adata = Spatial_Cluster_Analysis(adata)
+    sc.pl.spatial(adata, ax=axs, color=key)
+    fig.savefig(figname, dpi=400)
+
+
+def Show_Violin(sptFile, figname, key, h5data='matrix'):
+    adata = Load_spt_to_AnnData(sptFile, h5data)
+    adata.var_names_make_unique()
+    fig, axs = plt.subplots(1, 1, figsize=(4, 3), constrained_layout=True)
     adata = Remove_mito_genes(adata)
     adata = Filter_genes(adata)
     from clu.Cluster_leiden import Spatial_Cluster_Analysis
     adata = Spatial_Cluster_Analysis(adata)
-    fig, axs = plt.subplots(1, 1, figsize=(6, 3), constrained_layout=True)
+    sc.pl.violin(adata, ax=axs, groupby="BayesSpace", keys=key)
+    fig.savefig(figname, dpi=400)
+
+
+def Show_Umap(sptFile, figname, h5data='matrix', is_spatial=True, key='ground_truth', title=None, do_cluster=True):
+    if is_spatial:
+        adata = Load_spt_to_AnnData(sptFile, h5data)
+    else:
+        adata = Load_spt_sc_to_AnnData(sptFile, h5data)
+    if do_cluster:
+        adata = Remove_mito_genes(adata)
+        adata = Filter_genes(adata)
+        from clu.Cluster_leiden import Spatial_Cluster_Analysis
+        adata = Spatial_Cluster_Analysis(adata)
+    fig, axs = plt.subplots(1, 1, figsize=(3.5, 3), constrained_layout=True)
     sc.pl.umap(adata, ax=axs, color=key, show=False)
     axs.set_title(title)
     fig.savefig(figname, dpi=400)
+
+
+def Show_Heatmap(sptFile, figname, h5data='matrix', title=None):
+    adata = Load_spt_to_AnnData(sptFile, h5data)
+
+    import seaborn as sns
+    import scanpy as sc
+    sc.pp.log1p(adata)
+    X = pd.DataFrame(adata.X.todense(), index=adata.obs_names, columns=adata.var_names)
+    X = X.iloc[0:200, 0:200]
+    fig, axs = plt.subplots(1, 1, figsize=(6, 4), constrained_layout=True)
+    sns.heatmap(X, cmap="viridis", ax=axs)
+    axs.set_title(title)
+    fig.savefig(figname, dpi=400)
+
+def Show_DS_comparison(sptFile, figname, h5data='scRNA_seq'):
+    from utils.stereoScope import Easy_Sample
+    from clu.Cluster_leiden import Spatial_Cluster_Analysis
+    from sklearn import metrics
+    scdata = Load_spt_sc_to_AnnData(sptFile, 'scRNA_seq')
+    scdata0 = Easy_Sample(scdata, 25, None)
+    scdata1 = Load_spt_sc_to_AnnData(sptFile, h5data)
+    scdata0 = Spatial_Cluster_Analysis(scdata0)
+    scdata1 = Spatial_Cluster_Analysis(scdata1)
+    scdata = Spatial_Cluster_Analysis(scdata)
+    ARI = metrics.adjusted_rand_score(scdata.obs['clusters'], scdata.obs['annotation'])
+    ARI0 = metrics.adjusted_rand_score(scdata0.obs['clusters'], scdata0.obs['annotation'])
+    ARI1 = metrics.adjusted_rand_score(scdata1.obs['clusters'], scdata1.obs['annotation'])
+    fig, axs = plt.subplots(2, 1, figsize=(3, 4), constrained_layout=True)
+    sc.pl.umap(scdata0, color='clusters', palette=sc.pl.palettes.default_20, size=14, ax=axs[0], show=False)
+    axs[0].set_title("Easy DownSample ARI={:.2f}".format(ARI0))
+    sc.pl.umap(scdata1, color='clusters', palette=sc.pl.palettes.default_20, size=14, ax=axs[1], show=False)
+    axs[1].set_title("VAE DownSample ARI={:.2f}".format(ARI1))
+    fig.savefig(figname, dpi=400)
+
+

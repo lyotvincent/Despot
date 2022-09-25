@@ -1,6 +1,6 @@
 {
   "working_dir": "/home/rzh/PycharmProjects/spatial",
-  "pythonPath": "~/anaconda3/envs/spatial/bin/python",
+  "pythonPath": "~/anaconda3/envs/spatial/bin/python3.9",
   "dataPath": "data/Visium_FFPE_Mouse_Kidney",
   "imgPath": "spatial",
   "tempdir": "h5ads",
@@ -17,9 +17,9 @@
   "load_hires": true,
   "load_fullres": false,
   "fullres_path": "",
-  "Decontamination": ["SPCS","SpotClean"],
-  "Clustering": ["BayesSpace"],
-  "Estimation": ["SPARK"],
-  "Deconvolution": "stereoScope",
+  "Decontamination": ["none","SPCS","SpotClean"],
+  "Clustering": ["Seurat", "Giotto", "BayesSpace", "SpaGCN", "leiden"],
+  "Estimation": ["SPARK", "SpaGCN"],
+  "Deconvolution": ["stereoScope", "Cell2Location", "SPOTlight", "spacexr", "Seurat", "Giotto"],
   "Enhancement": "BayesSpace"
 }

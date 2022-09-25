@@ -168,7 +168,7 @@ def spTRS_Find_bestGroup(sptFile, beta=1):
 
 
 def Fscore_Comparison(Best_dict: dict, Groups):
-    # find f-score about ground_truth
+    # find f-score about ground_truth for each pipeline
     ground_truth_max = pd.DataFrame()
     Seurat_max = pd.DataFrame()
     Giotto_max = pd.DataFrame()
@@ -200,8 +200,26 @@ def Fscore_Comparison(Best_dict: dict, Groups):
         cell_type.append(key)
         fscore.append(Best_dict[key][0])
     spTRS_max = pd.DataFrame(data=fscore, index=cell_type, columns=['spTRS']).T
-    res = ground_truth_max.append(spTRS_max)
-    return res
+    ground_truth_max = ground_truth_max.append(spTRS_max)
+
+    # find f-score about ground_truth for each pipeline
+    undct_max = pd.DataFrame()
+    dct_max = pd.DataFrame()
+    for mtd in Groups.keys():
+        dct_mtd = mtd.split('+')[0]
+        if dct_mtd == 'matrix':
+            group = Groups[mtd]
+            undct_max = undct_max.append(pd.DataFrame(group.max()).T)
+        else:
+            group = Groups[mtd]
+            dct_max = dct_max.append(pd.DataFrame(group.max()).T)
+    undct_max = pd.DataFrame(undct_max.max()).T
+    undct_max.index = ['matrix']
+    ground_truth_max = ground_truth_max.append(undct_max)
+    dct_max = pd.DataFrame(dct_max.max()).T
+    dct_max.index = ['decontaminated']
+    pip_res = ground_truth_max.append(dct_max)
+    return pip_res
 
 
 def Show_best_group(sptFile, cell_type, fscore, domain, mtd_chain: str, figname):

@@ -122,6 +122,37 @@ def Make_References(sptFile, count_size=3000,
     reference = pd.DataFrame(reference, columns=scdata.var_names, dtype='int32')
     return reference, label
 
+# just use easy down sampling to get scRNA-seq references
+def Easy_Sample(scdata, standard_size=25, add_filter=None):
+    # High Variable Genes, saved in scdata.uns['HVGs']
+    HVGs = scdata.uns['HVGs']
+
+    # filter genes for other conditions
+    if add_filter is None:
+        add_filter = np.ones(len(scdata)).astype(np.bool)
+
+    # all the cell types
+    uni_types = np.unique(scdata.obs['annotation'])
+    use_cells = []
+    for type in uni_types:
+        zidx = np.where((scdata.obs['annotation'] == type) & add_filter)[0]
+        nz = zidx.shape[0]
+
+        if nz < standard_size:
+            print(f"{type} | was discarded due to insufficient number of cells")
+            continue
+        else:
+            zidx = np.random.choice(zidx,size=standard_size,
+                                    replace=False)
+        fromz = zidx.shape[0]
+        use_cells += zidx.tolist()
+
+        print(f"{type} | Used {fromz} cells ")
+
+    use_cells = np.array(use_cells)
+    scdata0 = scdata[use_cells, HVGs]
+    return scdata0
+
 def Save_tsv_from_ref(reference: pd.DataFrame, label: pd.DataFrame, tempdir, name):
     tsvPath = tempdir + "/references/" + name + '/'
     if not os.path.exists(tsvPath):
