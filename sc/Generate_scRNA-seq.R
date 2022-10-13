@@ -24,9 +24,15 @@ scType <- params$scType
 if(scType == "Any"){
   sce <- Load_sc_to_SCE(scbar, scfea, scmat, scgth, scgnm)
   sce <- Analysis_scRNA_seq(sce)
-} else  if(scType == "10X"){
+} else if(scType == "txt"){
+  sce <- Load_txtsc_to_SCE(scmat, scgth, scgnm)
+  sce <- Analysis_scRNA_seq(sce)
+} else if(scType == "10X"){
   sce <- Load_10Xsc_to_SCE(scdir)
   sce <- Analysis_scRNA_seq_noanno(sce, anno.signature = scMarkers)
+} else if(scType == "h5ad"){
+  sce <- Load_h5adsc_to_SCE(scmat, scgnm)
+  sce <- Analysis_scRNA_seq(sce)
 }
 
 Save_scRNAseq_to_spt(sptFile, sce)

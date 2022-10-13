@@ -62,13 +62,23 @@ def Load_json_configs(path: str, encoding: str = 'utf8'):
         json_data = json.load(fp)
     return json_data
 
+# convert bytes to str in array
+def bytes2str(arr):
+    arr = np.array(list(map(lambda x: str(x, encoding='utf-8'), arr)))
+    return arr
+
+# conver str to bytes in array
+def str2bytes(arr):
+    arr = np.array(list(map(lambda x: bytes(x, encoding='utf-8'), arr)))
+    return arr
+
 
 def Load_spt_to_AnnData(sptFile: str,
                         count: str = "matrix",
                         hires: bool = False,
                         dtype='float32'):
     # use h5py to load origin info
-    h5_obj = h5.File(sptFile, 'a')
+    h5_obj = h5.File(sptFile, 'r')
     h5mat = h5_obj['matrix']
     h5img = h5_obj["sptimages"]
     features = h5mat['features']
@@ -91,9 +101,9 @@ def Load_spt_to_AnnData(sptFile: str,
                         'array_col': np.array(coord["col"][:], dtype='int32'),
                         'image_row': np.array(coord["imagerow"][:], dtype='int32'),
                         'image_col': np.array(coord["imagecol"][:], dtype='int32')},
-                       index=np.array(coord["index"][:], dtype='str'))
+                       index=bytes2str(coord["index"][:]))
     obs = obs.sort_index()
-    obs_names = np.array(h5dat['barcodes'][:], dtype='str')
+    obs_names = bytes2str(h5dat['barcodes'][:])
     obs = obs.loc[obs_names, :]
 
     # load idents
@@ -104,14 +114,14 @@ def Load_spt_to_AnnData(sptFile: str,
         if str.isnumeric(idf[0]):
             idf = np.array(idents[ident][:], dtype=int)
         # change idents to category
-        idf = pd.Series(idf, index=np.array(h5mat['barcodes'][:], dtype='str'), dtype='category')
+        idf = pd.Series(idf, index=bytes2str(h5mat['barcodes'][:]), dtype='category')
         obs[ident] = idf.loc[obs_names]
     obsm = np.array([obs['image_col'], obs['image_row']])
     obsm = obsm.T
 
     # create var
     if count != "matrix":  # which means Decont data exists
-        h5fea = np.array(h5dat['features']['name'][:], dtype='str')
+        h5fea = bytes2str(h5dat['features']['name'][:])
         var = pd.DataFrame({'gene_name': h5fea}, index=h5fea)
     else:
         # var = pd.DataFrame({'gene_ids': np.array(features["id"][:], dtype='str'),
@@ -119,14 +129,14 @@ def Load_spt_to_AnnData(sptFile: str,
         #                     'genome': np.array(features['genome'][:], dtype='str'),
         #                     'gene_name': np.array(features['name'][:], dtype='str')})
         # var.index = var['gene_ids']
-        h5fea = np.array(h5dat['features']['name'][:], dtype='str')
+        h5fea = bytes2str(h5dat['features']['name'][:])
         var = pd.DataFrame({'gene_name': h5fea}, index=h5fea)
     name = str(h5_obj["name"][0], encoding='utf8')
 
     adata = ad.AnnData(X, obs=obs, var=var)
     adata.obs_names = obs_names
     adata.obsm['spatial'] = obsm
-
+    print("Loading Gene expression finished.")
     # create Images
     adata.uns['spatial'] = {name: {
         'images': {'lowres': h5img['lowres'][:].T},
@@ -139,6 +149,7 @@ def Load_spt_to_AnnData(sptFile: str,
     if hires:
         adata.uns['spatial'][name]['images']['hires'] = h5img['hires'][:].T
 
+    print("Loading spatial images finished.")
     # create svgs
     if 'is_HVG' not in h5dat['features']:
         h5_obj.create_group(count + 'features/is_HVG')
@@ -157,20 +168,18 @@ def Load_spt_to_AnnData(sptFile: str,
         adata.uns["HVGs"] = HVGS
 
     # create deconv results
-    if 'deconv' not in h5dat:
-        h5_obj.create_group(count + '/deconv')
-    else:
-        h5dcv = h5dat['deconv']
-        if len(h5dcv.keys()) > 0:
-            for dcv in h5dcv.keys():
-                print(dcv)
-                shape = h5dcv[dcv]['shape']
-                weights = np.array(h5dcv[dcv]['weights']).reshape(shape[1], shape[0]).T
-                barcodes = np.array(h5dcv[dcv]['barcodes'][:], dtype='str')
-                cell_type = np.array(h5dcv[dcv]['cell_type'][:], dtype='str')
-                w = pd.DataFrame(weights, index=barcodes, columns=cell_type)
-                print(w)
-                adata.obsm[dcv] = w
+    h5dcv = h5dat['deconv']
+    if len(h5dcv.keys()) > 0:
+        for dcv in h5dcv.keys():
+            print(dcv)
+            shape = h5dcv[dcv]['shape']
+            weights = np.array(h5dcv[dcv]['weights']).reshape(shape[1], shape[0]).T
+            barcodes = bytes2str(h5dcv[dcv]['barcodes'][:])
+            cell_type = bytes2str(h5dcv[dcv]['cell_type'][:])
+            w = pd.DataFrame(weights, index=barcodes, columns=cell_type)
+            print(w)
+            adata.obsm[dcv] = w
+    print("Loading deconvolution data finished.")
     h5_obj.close()
     return adata
 
@@ -188,14 +197,18 @@ def Load_spt_sc_to_AnnData(sptFile, h5data='scRNA_seq'):
     # create X in AnnData
     X = csc_matrix((data, indices, indptr), shape=shape, dtype='int32').T
     # create obs in AnnData
-    obs = pd.DataFrame({'annotation': np.array(idents['annotation'][:], dtype='str')},
-                       index=np.array(scRNA_seq['barcodes'][:], dtype='str'))
+    anno = bytes2str(idents['annotation'][:])
+    bar = bytes2str(scRNA_seq['barcodes'][:])
+    obs = pd.DataFrame({'annotation': anno},
+                       index=bar)
     # create var in AnnData
-    var = pd.DataFrame(index=np.array(scRNA_seq['features']['name'][:], dtype='str'))
+    fea = bytes2str(scRNA_seq['features']['name'][:])
+    var = pd.DataFrame(index=fea)
     # create AnnData
     adata = ad.AnnData(X, obs=obs, var=var)
     if 'HVGs' in scRNA_seq['features']:
-        adata.uns['HVGs'] = np.array(scRNA_seq['features']['HVGs'][:], dtype='str')
+        hvg = bytes2str(scRNA_seq['features']['HVGs'][:])
+        adata.uns['HVGs'] = np.array(hvg, dtype='str')
     return adata
 
 
@@ -352,7 +365,7 @@ def Save_spt_from_SpatialDE(sptFile, adata, h5data='matrix'):
             f.create_group(h5data + '/fearures/is_HVG/SpatialDE')
 
         # save Gene Name
-        name = list(np.array(adata.var.index, dtype='S'))
+        name = list(str2bytes(adata.var.index))
         f.create_dataset(h5data + '/features/is_HVG/SpatialDE/name', data=name)
         # save FSV
         FSV = list(np.array(adata.var['FSV'], dtype='float32'))
@@ -403,8 +416,8 @@ def Save_spt_from_StereoScope(sptFile, Wfile, h5data='matrix', name='StereoScope
     W = pd.read_csv(Wfile, sep='\t', index_col=0).T
     shape = [W.shape[1], W.shape[0]]
     weights = np.array(W).flatten()
-    cell_type = list(W.index)
-    barcodes = list(W.columns)
+    cell_type = list(str2bytes(W.index))
+    barcodes = list(str2bytes(W.columns))
 
     with h5.File(sptFile, 'a') as f:
         if h5data + '/deconv/' + name not in f:
@@ -427,8 +440,8 @@ def Save_spt_from_Cell2Location(sptFile, adata, h5data='matrix'):
     W = adata.obsm['Cell2Location'].T
     shape = [W.shape[1], W.shape[0]]
     weights = np.array(W).flatten()
-    cell_type = list(W.index)
-    barcodes = list(W.columns)
+    cell_type = list(str2bytes(W.index))
+    barcodes = list(str2bytes(W.columns))
 
     with h5.File(sptFile, 'a') as f:
         if h5data + '/deconv/Cell2Location' not in f:
@@ -481,9 +494,31 @@ def Save_spt_from_ref(sptFile, reference: pd.DataFrame, label: pd.DataFrame, nam
         f.create_dataset(name + '/shape', data=shape, dtype='int')
         f.create_dataset(name + '/barcodes', data=reference.index, dtype='int')
         f.create_group(name + '/features')
-        refname = list(np.array(reference.columns, dtype='S'))
-        annotation = list(np.array(label['annotation'], dtype='S'))
+        refname = list(str2bytes(reference.columns))
+        annotation = list(str2bytes(label['annotation']))
         f.create_dataset(name + '/features/name', data=refname)
         f.create_group(name + '/idents')
         f.create_dataset(name + '/idents/annotation', data=annotation)
     print("references finished, reference scRNA-seq data saved in " + name)
+
+
+def Save_spt_from_corrcoef(sptFile, coef: pd.DataFrame, dcv_mtd, h5data='matrix'):
+    weights = np.array(coef).flatten()
+    cell_type = list(str2bytes(coef.index))
+    shape = [coef.shape[1], coef.shape[0]]
+    with h5.File(sptFile, 'a') as f:
+        if h5data + "/coef" not in f:
+            f.create_group(h5data + "/coef")
+        if h5data + "/coef/" + dcv_mtd not in f:
+            f.create_group(h5data + "/coef/" + dcv_mtd)
+        else:
+            del f[h5data + '/coef/' + dcv_mtd + '/weights']
+            del f[h5data + '/coef/' + dcv_mtd + '/shape']
+            del f[h5data + '/coef/' + dcv_mtd + '/cell_type']
+            del f[h5data + '/coef/' + dcv_mtd]
+            f.create_group(h5data + '/coef/' + dcv_mtd)
+        f.create_dataset(h5data + '/coef/' + dcv_mtd + '/weights', data=weights)
+        f.create_dataset(h5data + '/deconv/Cell2Location/cell_type', data=cell_type)
+        f.create_dataset(h5data + '/deconv/Cell2Location/shape', data=shape)
+    print("pearson's R with " + dcv_mtd + " finished, index saved in /" + h5data + '/coef/' + dcv_mtd)
+

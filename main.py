@@ -1,3 +1,5 @@
+import time
+
 from utils.common import *
 from utils.io import *
 from utils.preprocess import *
@@ -187,6 +189,7 @@ def Pip_deconv(sptFile, h5data='matrix', method="stereoScope", name='temp', forc
         Wfile = os.listdir("h5ads/" + name + "_res/spt_data")[0]
         Wfile = "h5ads/" + name + "_res/spt_data/" + Wfile
         Save_spt_from_StereoScope(sptFile, Wfile, h5data, name='StereoScope_es')
+        os.remove(Wfile)
     elif method == 'stereoScope_na':
         # stereoScope_na represents no preprocessing in single-cell data
         from dcv.stereoScope import StereoScope_pp_na, StereoScope_run
@@ -195,6 +198,7 @@ def Pip_deconv(sptFile, h5data='matrix', method="stereoScope", name='temp', forc
         Wfile = os.listdir("h5ads/" + name + "_res/spt_data")[0]
         Wfile = "h5ads/" + name + "_res/spt_data/" + Wfile
         Save_spt_from_StereoScope(sptFile, Wfile, h5data, name='StereoScope_na')
+        os.remove(Wfile)
     elif method == 'Cell2Location':
         from dcv.cell2location import Cell2Location_run
         adata = Cell2Location_run(sptFile)
@@ -314,7 +318,7 @@ def spTRS_Estimate(sptFile, cfg, force=False):
 def spTRS_Deconv(sptFile, cfg, name='temp', force=False):
     do_scRNA_seq = False
     with h5.File(sptFile, 'r') as f:
-        if 'scRNA_seq' not in f:
+        if 'scRNA_seq' not in f or force is True:
             print("scRNA_seq data not in sptFile, Generating it...")
             do_scRNA_seq = True
         else:
@@ -345,9 +349,14 @@ def spTRS_Deconv(sptFile, cfg, name='temp', force=False):
     h5datas.append("matrix")
 
     methods = cfg['Deconvolution']
+    f = open("log.txt", 'a')
     for h5data in h5datas:
         for method in methods:
+            start = time.time()
             Pip_deconv(sptFile, h5data, method=method, name=name, force=force)
+            end = time.time()
+            print("method {0} using: {1}min.".format(method, (end-start)/60), file=f)
+    f.close()
 
 
 def spTRS_Benchmark(sptFile, cfg, mode: str = "cluster", force: bool = False):

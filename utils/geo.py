@@ -164,6 +164,15 @@ def spTRS_Find_bestGroup(sptFile, beta=1):
             else:
                 if mtd_Fscore.loc[ct, 'F-score'] > Best_dict[ct][0]:
                     Best_dict[ct] = (mtd_Fscore.loc[ct, 'F-score'], mtd_Fscore.loc[ct, 'domain'], mtd)
+    # find markers for each region
+    # for cell_type in Best_dict.keys():
+    #     region = Best_dict[cell_type][1]
+    #     mtd = Best_dict[cell_type][2]
+    #     clu_mtd = mtd.split('+')[2]
+    #     dcv_mtd = mtd.split('+')[1]
+    #     dct_mtd = mtd.split('+')[0]
+    #     adata = Load_spt_to_AnnData(sptFile, count=dct_mtd)
+    #     sc.tl.filter_rank_genes_groups(adata, key=region, groupby=clu_mtd)
     return Best_dict, Groups
 
 
@@ -218,7 +227,33 @@ def Fscore_Comparison(Best_dict: dict, Groups):
     ground_truth_max = ground_truth_max.append(undct_max)
     dct_max = pd.DataFrame(dct_max.max()).T
     dct_max.index = ['decontaminated']
-    pip_res = ground_truth_max.append(dct_max)
+    ground_truth_max = ground_truth_max.append(dct_max)
+    # comparison among vae, es and na
+    vae_max = pd.DataFrame()
+    es_max = pd.DataFrame()
+    na_max = pd.DataFrame()
+    for mtd in Groups.keys():
+        dcv_mtd = mtd.split('+')[1]
+        if dcv_mtd in ["StereoScope", "spacexr", "SPOTlight_vae"]:
+            group = Groups[mtd]
+            vae_max = vae_max.append(pd.DataFrame(group.max()).T)
+        elif dcv_mtd in ["StereoScope_es", "spacexr_es", "SPOTlight_es"]:
+            group = Groups[mtd]
+            es_max = es_max.append(pd.DataFrame(group.max()).T)
+        elif dcv_mtd in ['StereoScope_na', 'SPOTlight']:
+            group = Groups[mtd]
+            na_max = na_max.append(pd.DataFrame(group.max()).T)
+    vae_max = pd.DataFrame(vae_max.max()).T
+    vae_max.index = ['vae']
+    ground_truth_max = ground_truth_max.append(vae_max)
+
+    es_max = pd.DataFrame(es_max.max()).T
+    es_max.index = ['es']
+    ground_truth_max = ground_truth_max.append(es_max)
+
+    na_max = pd.DataFrame(na_max.max()).T
+    na_max.index = ['na']
+    pip_res = ground_truth_max.append(na_max)
     return pip_res
 
 
@@ -244,6 +279,98 @@ def Show_bash_best_group(sptFile, Best_dict, folder):
     for cell_type in cell_types:
         Best_item = Best_dict[cell_type]
         Show_best_group(sptFile, cell_type, Best_item[0], Best_item[1], Best_item[2], folder + "/" + cell_type + ".eps")
+
+
+def spTRS_self_correlation(sptFile, alpha=1):
+    # using scipy to calculate pearson's r
+    from scipy.stats import pearsonr, spearmanr
+    sptinfo = sptInfo(sptFile)
+    h5datas = sptinfo.get_spmatrix()
+    for h5data in h5datas:
+        adata = Load_spt_to_AnnData(sptFile, h5data)
+        dcv_mtds = sptinfo.get_dcv_methods(h5data)
+        for dcv in dcv_mtds:
+            geometry = [Point(xy) for xy in zip(adata.obs['array_row'], adata.obs['array_col'])]
+            # first calculate global moransI
+            ad_gdf = GeoDataFrame(adata.obsm[dcv], geometry=geometry, copy=True)
+            wq = lps.weights.Queen.from_dataframe(ad_gdf)
+            wq.transform = 'r'
+            # we combine the cell enrichment with the neighbor plot
+            comp = pd.DataFrame(adata.obsm[dcv])
+            y_lag = pd.DataFrame(list(map(lambda i: lps.weights.lag_spatial(wq, comp.loc[:, i]), comp.columns))).T
+            y_lag.columns, y_lag.index = comp.columns, comp.index
+            # set alpha=0 to cancel the efficiency of neighbor expressions
+            comp = comp + alpha * y_lag
+            # normalize the comp
+            ct_mean = np.mean(comp, axis=0)
+            ct_std = np.std(comp, axis=0)
+            comp = (comp - ct_mean) / ct_std
+            # comp = comp + lags
+            coef = np.corrcoef(comp.T)
+            corr = np.zeros((comp.shape[1], comp.shape[1]))
+            p_val = np.zeros((comp.shape[1], comp.shape[1]))
+            for x in range(p_val.shape[0]):
+                for y in range(p_val.shape[1]):
+                    corr[x, y], p_val[x, y] = spearmanr(comp.iloc[:, x], comp.iloc[:, y])
+            coef = pd.DataFrame(coef, index=comp.columns, columns=comp.columns)
+            Save_spt_from_corrcoef(sptFile, coef, dcv, h5data = h5data)
+
+
+def spTRS_combine_best_group(sptFile, Best_dict):
+    cell_types = list(Best_dict.keys())
+    abundance = pd.DataFrame()
+    sptinfo = sptInfo(sptFile)
+    dct_mtds = sptinfo.get_spmatrix()
+    adatas = list(map(lambda dct: Load_spt_to_AnnData(sptFile, count=dct), dct_mtds))
+    adatas = dict(zip(dct_mtds, adatas))
+    for cell_type in cell_types:
+        Best_item = Best_dict[cell_type]
+        mtds = Best_item[2].split('+')
+        dct_mtd, dcv_mtd, clu_mtd = mtds[0], mtds[1], mtds[2]
+        abundance = pd.concat([abundance, adatas[dct_mtd].obsm[dcv_mtd][cell_type]], axis=1)
+    geometry = [Point(xy) for xy in zip(adatas['matrix'].obs['array_row'], adatas['matrix'].obs['array_col'])]
+    ad_gdf = GeoDataFrame(abundance, geometry=geometry, copy=True)
+    wq = lps.weights.Queen.from_dataframe(ad_gdf)
+    wq.transform = 'r'
+    comp = abundance
+    y_lag = pd.DataFrame(list(map(lambda i: lps.weights.lag_spatial(wq, comp.loc[:, i]), comp.columns))).T
+    y_lag.columns, y_lag.index = comp.columns, comp.index
+    return comp, y_lag
+
+
+def spTRS_group_correlation(sptFile, Best_dict, alpha=1):
+    comp, y_lag = spTRS_combine_best_group(sptFile, Best_dict)
+    # set alpha=0 to cancel the efficiency of neighbor expressions
+    comp = comp + alpha * y_lag
+    corr, p_val = do_corr(comp, "pearsonr")
+    return comp, corr, p_val
+
+
+def do_corr(comp, method="pearsonr"):
+    # normalize the comp
+    ct_mean = np.mean(comp, axis=0)
+    ct_std = np.std(comp, axis=0)
+    comp = (comp - ct_mean) / ct_std
+    from scipy.stats import pearsonr, spearmanr
+    if method == "pearsonr":
+        f = pearsonr
+    else:
+        f = spearmanr
+    corr = np.zeros((comp.shape[1], comp.shape[1]))
+    p_val = np.zeros((comp.shape[1], comp.shape[1]))
+    for x in range(p_val.shape[0]):
+        for y in range(p_val.shape[1]):
+            corr[x, y], p_val[x, y] = f(comp.iloc[:, x], comp.iloc[:, y])
+    corr = pd.DataFrame(corr, index=comp.columns, columns=comp.columns)
+    p_val = pd.DataFrame(p_val, index=comp.columns, columns=comp.columns)
+    return corr, p_val
+
+
+def Show_self_correlation(comp, folder):
+    import seaborn as sns
+    fig, axs = plt.subplots(1, 1, figsize=(4, 4), constrained_layout=True)
+    sns.heatmap(comp, cmap="viridis", ax=axs)
+    fig.savefig(folder+'/comp.eps', dpi=400)
 
 
 def distance(a, b):

@@ -3,6 +3,8 @@ from utils.preprocess import *
 import seaborn as sns
 
 # report the sptFile, including brief information, umap graphs, deconvolution composition
+# PVL mapping right
+# B-cell mapping wrong
 def spTRS_report(sptFile, count="matrix"):
     # report brief information
     adata = Load_spt_to_AnnData(sptFile, count)
@@ -82,11 +84,24 @@ def Show_Umap(sptFile, figname, h5data='matrix', is_spatial=True, key='ground_tr
         adata = Filter_genes(adata)
         from clu.Cluster_leiden import Spatial_Cluster_Analysis
         adata = Spatial_Cluster_Analysis(adata)
-    fig, axs = plt.subplots(1, 1, figsize=(3.5, 3), constrained_layout=True)
+    fig, axs = plt.subplots(1, 1, figsize=(4.5, 3), constrained_layout=True)
     sc.pl.umap(adata, ax=axs, color=key, show=False)
     axs.set_title(title)
     fig.savefig(figname, dpi=400)
 
+
+def Show_Spatial_and_Umap(sptFile, h5data='matrix',key='BayesSpace'):
+    adata = Load_spt_to_AnnData(sptFile, h5data)
+    adata = Remove_mito_genes(adata)
+    adata = Filter_genes(adata)
+    from clu.Cluster_leiden import Spatial_Cluster_Analysis
+    adata = Spatial_Cluster_Analysis(adata)
+    fig, axs = plt.subplots(1, 2, figsize=(6, 3), constrained_layout=True)
+    sc.pl.spatial(adata, ax=axs[0], color=key, legend_loc=None)
+    axs[0].set_title("Tissue Plot")
+    sc.pl.umap(adata, ax=axs[1], color=key, show=False)
+    axs[1].set_title("Umap Plot")
+    fig.show()
 
 def Show_Heatmap(sptFile, figname, h5data='matrix', title=None):
     adata = Load_spt_to_AnnData(sptFile, h5data)

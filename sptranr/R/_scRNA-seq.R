@@ -240,11 +240,11 @@ Load_sptsc_to_SCE <- function(sptFile, h5data = "scRNA_seq"){
   colData <- DataFrame(barcodes = h5_obj$barcodes,
                        free_annotation = h5_obj$idents$annotation)
   se <- SummarizedExperiment(assays = list(counts = dat),
-                             rowData = DataFrame(gene_name = h5_obj$features$name),
+                             rowData = DataFrame(gene_name = toupper(h5_obj$features$name)),
                              colData = colData)
   sce <- as(se, "SingleCellExperiment")
   colnames(sce) <- h5_obj$barcodes
-  rownames(sce) <- h5_obj$features$name
+  rownames(sce) <- toupper(h5_obj$features$name)
   return(sce)
 }
 
@@ -255,7 +255,7 @@ Load_sptsc_to_Seurat <- function(sptFile, h5data = "scRNA_seq"){
                       p = h5_obj$indptr[],
                       x = as.numeric(h5_obj$data[]),
                       dims = h5_obj$shape[],
-                      dimnames = list(h5_obj$features$name, h5_obj$barcodes),
+                      dimnames = list(toupper(h5_obj$features$name), h5_obj$barcodes),
                       repr = "C")
   colData <- DataFrame(barcodes = h5_obj$barcodes,
                        free_annotation = h5_obj$idents$annotation)

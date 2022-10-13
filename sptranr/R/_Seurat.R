@@ -30,6 +30,11 @@ Deconvolution_Seurat <- function(seu.sp, seu.sc){
   return(predictions.assay)
 }
 
+FindMarkers_Seurat <- function(seu, ident){
+  de_markers <- FindMarkers(seu, ident.1 = ident)
+  return(de_markers)
+}
+
 Save_spt_from_Seurat.dcv <- function(sptFile, h5data, predictions.assay){
 
   results <- Matrix(t(predictions.assay@data[-dim(predictions.assay@data)[1],]))
