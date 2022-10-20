@@ -1,6 +1,6 @@
 from utils.common import *
 
-
+# summary of a sptFile
 class sptInfo:
     def __init__(self, sptFile):
         self.sptFile = sptFile
@@ -30,6 +30,18 @@ class sptInfo:
                 self.spmatrixs[keys]['cluster_methods'] = clu_mtds
                 self.spmatrixs[keys]['deconvolution_methods'] = dcv_mtds
 
+        # add map_chain if available
+        self.map_chains = pd.DataFrame()
+        if 'map_chains' in mat:
+            with h5.File(self.sptFile, 'r') as f:
+                for key in f['map_chains'].keys():
+                    dat = f['map_chains'][key][:]
+                    if type(dat[0]) == bytes:
+                        dat = bytes2str(dat)
+                    dat = pd.DataFrame(dat, columns=[key])
+                    self.map_chains = pd.concat([self.map_chains, dat], axis=1)
+        self.map_chains.index = self.map_chains['cell-type']
+
     def get_spmatrix(self):
         return list(self.spmatrixs.keys())
 
@@ -54,6 +66,12 @@ class sptInfo:
                 return self.spmatrixs[spmat]['deconvolution_methods']
             else:
                 return None
+
+    def get_map_chains(self, cell_type):
+        if cell_type in self.map_chains.index:
+            return self.map_chains.loc[cell_type, :]
+        else:
+            return None
 
 
 # the params are saved in a .json config
@@ -521,4 +539,25 @@ def Save_spt_from_corrcoef(sptFile, coef: pd.DataFrame, dcv_mtd, h5data='matrix'
         f.create_dataset(h5data + '/deconv/Cell2Location/cell_type', data=cell_type)
         f.create_dataset(h5data + '/deconv/Cell2Location/shape', data=shape)
     print("pearson's R with " + dcv_mtd + " finished, index saved in /" + h5data + '/coef/' + dcv_mtd)
+
+
+def Save_spt_from_BestDict(sptFile, Best_dict: dict):
+    col = ["cell-type", "F1-score", "domain", "dct", "dcv", "clu"]
+    best_df = pd.DataFrame(columns=col)
+    cell_types = Best_dict.keys()
+    for ct in cell_types:
+        Best_item = Best_dict[ct]
+        mtds = Best_item[2].split('+')
+        dct_mtd, dcv_mtd, clu_mtd = mtds[0], mtds[1], mtds[2]
+        df_item = pd.DataFrame(data=[ct, Best_item[0], Best_item[1], dct_mtd, dcv_mtd, clu_mtd], index=col, columns=[ct]).T
+        best_df = pd.concat([best_df, df_item])
+    with h5.File(sptFile, 'a') as f:
+        if "/map_chains" not in f:
+            f.create_group("/map_chains")
+        for cols in best_df.columns:
+            dat = list(best_df[cols])
+            if type(dat) == str:
+                f.create_dataset("map_chains/"+cols, data=str2bytes(dat))
+            else:
+                f.create_dataset("map_chains/"+cols, data=dat)
 

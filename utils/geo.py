@@ -366,11 +366,132 @@ def do_corr(comp, method="pearsonr"):
     return corr, p_val
 
 
-def Show_self_correlation(comp, folder):
+def Show_self_correlation(corr, folder):
     import seaborn as sns
-    fig, axs = plt.subplots(1, 1, figsize=(4, 4), constrained_layout=True)
-    sns.heatmap(comp, cmap="viridis", ax=axs)
-    fig.savefig(folder+'/comp.eps', dpi=400)
+    fig, axs = plt.subplots(1, 1, figsize=(8, 4), constrained_layout=True)
+    sns.heatmap(corr, cmap="viridis", ax=axs)
+    fig.savefig(folder+'/corr1.eps', dpi=400)
+
+
+def Generate_New_idents(sptFile, Best_dict):
+    cell_types = list(Best_dict.keys())
+    sptinfo = sptInfo(sptFile)
+    dct_mtds = sptinfo.get_spmatrix()
+    adatas = list(map(lambda dct: Load_spt_to_AnnData(sptFile, count=dct), dct_mtds))
+    adatas = dict(zip(dct_mtds, adatas))
+    new_idents = pd.DataFrame(index=adatas['matrix'].obs_names)
+    # set all domain to NA
+    new_idents['domain'] = ""
+    new_idents["fscore"] = 0
+    for cell_type in cell_types:
+        Best_item = Best_dict[cell_type]
+        fscore = Best_item[0]
+        domain = Best_item[1]
+        mtds = Best_item[2].split('+')
+        dct_mtd, dcv_mtd, clu_mtd = mtds[0], mtds[1], mtds[2]
+        adata = adatas[dct_mtd]
+        for spot in new_idents[adata.obs[clu_mtd] == domain].index:
+            if fscore > new_idents.loc[spot, 'fscore']:
+                new_idents.loc[spot, 'domain'] = cell_type
+                new_idents.loc[spot, 'fscore'] = fscore
+
+    new_idents[new_idents['domain'] == ""] = "NA"
+
+
+def Gen_venn(sptFile, Best_dict, top_genes=200):
+    from matplotlib_venn import venn2, venn2_circles
+    cell_types = list(Best_dict.keys())
+    sptinfo = sptInfo(sptFile)
+    dct_mtds = sptinfo.get_spmatrix()
+    adatas = list(map(lambda dct: Load_spt_to_AnnData(sptFile, count=dct), dct_mtds))
+    adatas = dict(zip(dct_mtds, adatas))
+
+    # load the single cell data
+    adata_sc = Load_spt_sc_to_AnnData(sptFile)
+    sc.pp.log1p(adata_sc)
+    for cell_type in cell_types:
+        Best_item = Best_dict[cell_type]
+        domain = Best_item[1]
+        mtds = Best_item[2].split('+')
+        dct_mtd, dcv_mtd, clu_mtd = mtds[0], mtds[1], mtds[2]
+        adata = adatas[dct_mtd]
+        sc.pp.log1p(adata)
+        sc.tl.rank_genes_groups(adata, groupby=clu_mtd, groups=[domain])
+        sp_gene = pd.DataFrame(adata.uns['rank_genes_groups']['names'][:top_genes])
+        sp_gene = pd.DataFrame(sp_gene.iloc[:, 0].apply(str.upper))
+        sc_gene = pd.DataFrame(adata_sc.uns['rank_genes_groups']['names'][:top_genes])
+        sc_gene = pd.DataFrame(sc_gene.iloc[:, 0].apply(str.upper))
+        f = venn2(
+            subsets=[set(sp_gene.iloc[:,0]), set(sc_gene.iloc[:,0])],
+            set_labels=('domain:' + str(domain), cell_type),
+            set_colors=("#098154", "#c72e29"),
+            alpha=0.6,  # 透明度
+            normalize_to=1.0)
+
+        f.get_patch_by_id('10').set_edgecolor('red')  # 左圈外框颜色
+        f.get_patch_by_id('10').set_linestyle('--')  # 左圈外框线型
+        f.get_patch_by_id('10').set_linewidth(2)  # 左圈外框线宽
+        f.get_patch_by_id('01').set_edgecolor('green')  # 右圈外框颜色
+        f.get_patch_by_id('11').set_edgecolor('blue')  # 中间圈外框颜色
+        # plt.show()
+
+        plt.annotate('intersection genes',
+                     color='black',
+                     xy=f.get_label_by_id('11').get_position() + np.array([0, 0.05]),
+                     xytext=(20, 80),
+                     ha='center', textcoords='offset points',
+                     bbox=dict(boxstyle='round,pad=0.5', fc='grey', alpha=0.6),
+                     arrowprops=dict(arrowstyle='-|>', connectionstyle='arc3,rad=-0.5', color='black')
+                     )
+        plt.show()
+
+
+def Gen_venn3(adata_sp, adata_sc1, adata_sc2, domain, clu_mtd, cell_type1, cell_type2, folder, top_genes=200):
+    from matplotlib_venn import venn3, venn3_circles
+    sc.pp.log1p(adata_sp)
+    sc.pp.log1p(adata_sc1)
+    sc.pp.log1p(adata_sc2)
+    sc.tl.rank_genes_groups(adata_sp, groupby=clu_mtd, groups=[domain])
+    sc.tl.rank_genes_groups(adata_sc1, groupby="annotation", groups=[cell_type1])
+    sc.tl.rank_genes_groups(adata_sc2, groupby="annotation", groups=[cell_type2])
+    sp_gene = pd.DataFrame(adata_sp.uns['rank_genes_groups']['names'][:top_genes])
+    sp_gene = pd.DataFrame({"names": sp_gene.iloc[:, 0].apply(str.upper),
+                            "scores": pd.DataFrame(adata_sp.uns['rank_genes_groups']['scores'][:top_genes]).iloc[:, 0]})
+    sp_gene.index = sp_gene['names']
+    sc_gene1 = pd.DataFrame(adata_sc1.uns['rank_genes_groups']['names'][:top_genes])
+    sc_gene1 = pd.DataFrame({"names": sc_gene1.iloc[:, 0].apply(str.upper),
+                             "scores": pd.DataFrame(adata_sc1.uns['rank_genes_groups']['scores'][:top_genes]).iloc[:, 0]})
+    sc_gene1.index = sc_gene1['names']
+    sc_gene2 = pd.DataFrame(adata_sc2.uns['rank_genes_groups']['names'][:top_genes])
+    sc_gene2 = pd.DataFrame({"names": sc_gene2.iloc[:, 0].apply(str.upper),
+                             "scores": pd.DataFrame(adata_sc2.uns['rank_genes_groups']['scores'][:top_genes]).iloc[:, 0]})
+    sc_gene2.index = sc_gene2['names']
+
+    fig, axs = plt.subplots(1, 1, figsize=(3.5, 3.5), constrained_layout=True)
+    f = venn3(
+        subsets=[set(sp_gene.iloc[:, 0]), set(sc_gene1.iloc[:, 0]), set(sc_gene2.iloc[:, 0])],
+        set_labels=('domain:' + str(domain), cell_type1, cell_type2),
+        alpha=0.8,  # 透明度
+        normalize_to=1.0, ax=axs)
+
+    f.get_patch_by_id('111').set_linestyle('--')  # 左圈外框线型
+    f.get_patch_by_id('111').set_edgecolor('white')  # 中间圈外框颜色
+    inter_genes = (set(sp_gene.iloc[:, 0]).intersection(set(sc_gene1.iloc[:, 0])).intersection(set(sc_gene2.iloc[:, 0])))
+    inter_genes = pd.DataFrame(list(inter_genes), columns=['names'])
+    inter_genes['scores'] = np.mean(np.array([list(sp_gene.loc[list(inter_genes['names']), 'scores']),
+                                    list(sc_gene1.loc[inter_genes['names'], 'scores']),
+                                    list(sc_gene2.loc[inter_genes['names'], 'scores'])]), axis=0)
+    inter_genes = inter_genes.sort_values(by=['scores'], ascending=False)
+    axs.annotate('intersection genes',
+                 color='black',
+                 xy=f.get_label_by_id('111').get_position() + np.array([0, 0.05]),
+                 xytext=(20, 100),
+                 ha='center', textcoords='offset points',
+                 bbox=dict(boxstyle='round,pad=0.5', fc='grey', alpha=0.7),
+                 arrowprops=dict(arrowstyle='-|>', connectionstyle='arc3,rad=-0.5', color='black')
+                 )
+    fig.savefig(folder+"/"+cell_type1+"_"+cell_type2+".eps", dpi=400)
+    return inter_genes
 
 
 def distance(a, b):

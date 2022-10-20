@@ -84,8 +84,8 @@ def Show_Umap(sptFile, figname, h5data='matrix', is_spatial=True, key='ground_tr
         adata = Filter_genes(adata)
         from clu.Cluster_leiden import Spatial_Cluster_Analysis
         adata = Spatial_Cluster_Analysis(adata)
-    fig, axs = plt.subplots(1, 1, figsize=(4.5, 3), constrained_layout=True)
-    sc.pl.umap(adata, ax=axs, color=key, show=False)
+    fig, axs = plt.subplots(1, 1, figsize=(3, 3), constrained_layout=True)
+    sc.pl.umap(adata, ax=axs, color=key, show=False, palette=sc.pl.palettes.default_20, size=12)
     axs.set_title(title)
     fig.savefig(figname, dpi=400)
 
@@ -103,6 +103,30 @@ def Show_Spatial_and_Umap(sptFile, h5data='matrix',key='BayesSpace'):
     axs[1].set_title("Umap Plot")
     fig.show()
 
+
+def Show_Domain_and_Composition(sptFile, cell_type):
+    info = sptInfo(sptFile)
+    # arrangement of map chain: ["cell-type", "F1-score", "domain", "dct", "dcv", "clu"]
+    map_chain = info.get_map_chains(cell_type)
+    adata = Load_spt_to_AnnData(sptFile, map_chain['dct'])
+    adata = Remove_mito_genes(adata)
+    adata = Filter_genes(adata)
+    from clu.Cluster_leiden import Spatial_Cluster_Analysis
+    adata = Spatial_Cluster_Analysis(adata)
+    adata.obs['domain'] = list(adata.obs[map_chain['clu']])
+    adata.obs['domain'][adata.obs['domain'] != map_chain['domain']] = -1
+    adata.obs['domain'] = pd.Series(adata.obs['domain'], dtype='category')
+    adata.obs[map_chain['dcv']] = adata.obsm[map_chain['dcv']][cell_type]
+    fig, axs = plt.subplots(1, 2, figsize=(6, 3), constrained_layout=True)
+    sc.pl.spatial(adata, ax=axs[0], color='domain', legend_loc=None, cmap='coolwarm', show=False)
+    axs[0].set_title("Domain Plot")
+    sc.pl.spatial(adata, color=map_chain['dcv'], ax=axs[1], show=False)
+    axs[1].set_title("Composition Plot")
+    fig.show()
+
+
+
+
 def Show_Heatmap(sptFile, figname, h5data='matrix', title=None):
     adata = Load_spt_to_AnnData(sptFile, h5data)
 
@@ -116,6 +140,8 @@ def Show_Heatmap(sptFile, figname, h5data='matrix', title=None):
     axs.set_title(title)
     fig.savefig(figname, dpi=400)
 
+# downsampling comparison. this function draws a figure to compare cell expression patterns
+# between downsampling and VAE.
 def Show_DS_comparison(sptFile, figname, h5data='scRNA_seq'):
     from utils.stereoScope import Easy_Sample
     from clu.Cluster_leiden import Spatial_Cluster_Analysis
