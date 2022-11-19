@@ -3,7 +3,7 @@ import time
 from utils.common import *
 from utils.io import *
 from utils.preprocess import *
-from utils.geo import *
+from utils.geo import spTRS_Find_bestGroup, spTRS_group_correlation, Show_self_correlation, Show_bash_best_group
 
 
 def Spt_init(sptFile: str, force: bool = False):
@@ -402,11 +402,17 @@ def spTRS_Benchmark(sptFile, cfg, mode: str = "cluster", force: bool = False):
 
 name = cfg['name']
 
-Spt_init(sptFile=sptFile, force=True)
+Spt_init(sptFile=sptFile)
 spTRS_Decont(sptFile, cfg)
 spTRS_Cluster(sptFile, cfg)
-spTRS_Estimate(sptFile, cfg, force=True)
+# spTRS_Estimate(sptFile, cfg, force=True)
 spTRS_Deconv(sptFile, cfg)
+Best_dict, Groups = spTRS_Find_bestGroup(sptFile)
+folder = "FFPE_Human_Breast_Cancer"
+comp, corr, p_val = spTRS_group_correlation(sptFile, Best_dict, alpha=1)
+Show_self_correlation(corr, folder)
+Show_bash_best_group(sptFile, Best_dict, folder)
+
 # spTRS_Benchmark(sptFile, cfg, mode="cluster", force=False)
 # Pip_cluVisual(sptFile, h5data, imgPath="151673_none_cluster.pdf")
 # Cluster_Visualization(adata, type="spatial")

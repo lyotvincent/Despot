@@ -82,7 +82,7 @@ Save_10X_to_spt <- function(dir, sptFile, filtered.matrix = T, name = "",
       h5_obj$features <- fread(paste0(h5dir, "/features.tsv.gz"), header = F)
       colnames(h5_obj$features) <- "name"
       mtx <- Matrix::readMM(paste0(h5dir, "/matrix.mtx.gz"))
-      mtx <- as(mtx, "dgCMatrix")
+      mtx <- as(mtx, "CsparseMatrix")
       mtx@Dimnames[[1]] <- toupper(h5_obj$features$names)
       mtx@Dimnames[[2]] <- toupper(h5_obj$barcodes)
       mtx <- mtx[, order(mtx@Dimnames[[2]])]
@@ -729,7 +729,7 @@ Load_sc_to_SCE <- function(scbar, scfea, scmat, scgth = NA, scgnm = NA){
   library(stringr)
   fea <- str_to_upper(fea)
   mat <- readMM(scmat)
-  mat <- as(mat, "dgCMatrix")
+  mat <- as(mat, "CsparseMatrix")
   rownames(mat) <- fea
   colnames(mat) <- bar
   if(is.na(scgth)){
@@ -756,7 +756,7 @@ Load_txtsc_to_SCE <- function(scmat, scgth = NA, scgnm = NA){
   mat <- as.matrix(mat[, -1])
   rownames(mat) <- fea
   bar <- colnames(mat)
-  mat <- as(mat, "dgCMatrix")
+  mat <- as(mat, "CsparseMatrix")
   if(is.na(scgth)){
     sce <- SingleCellExperiment(assays = list(counts = mat),
                                 rowData = DataFrame(gene_name = fea),
@@ -958,7 +958,7 @@ Load_spt_to_SpatialRNA <- function(sptFile){
   h5_obj <- rhdf5::h5read(sptFile, '/')
   h5mat <- h5_obj$matrix
 
-  # genereate dgCMatrix in counts for SpatialRNA
+  # genereate CsparseMatrix in counts for SpatialRNA
   counts <- sparseMatrix(i = h5mat$indices[] + 1,
                        p = h5mat$indptr[],
                        x = as.numeric(h5mat$data[]),
@@ -991,7 +991,7 @@ Save_spt_to_tsv <- function(sptFile, outdir){
   }
   h5mat <- rhdf5::h5read(sptFile, '/matrix')
 
-  # genereate dgCMatrix in counts
+  # genereate CsparseMatrix in counts
   counts <- sparseMatrix(i = h5mat$indices[] + 1,
                          p = h5mat$indptr[],
                          x = as.numeric(h5mat$data[]),

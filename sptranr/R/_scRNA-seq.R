@@ -40,7 +40,16 @@ Analysis_scRNA_seq <- function(sce, top.HVGs = 3000){
   mgs_ls <- lapply(names(mgs), function(i){
     x <- mgs[[i]]
     # Filter and keep relevant marker genes, those with AUC > 0.8
-    x <- x[x$mean.AUC > 0.7, ]
+    AUC.thresh <- 0.8
+    while (AUC.thresh > 0){
+      if (sum(x$mean.AUC > AUC.thresh) > 0){
+        x <- x[x$mean.AUC > AUC.thresh, ]
+        break
+      }else{
+        AUC.thresh <- AUC.thresh - 0.1
+      }
+    }
+
     # Sort the genes from highest to lowest weight
     x <- x[order(x$mean.AUC, decreasing = TRUE), ]
     # Add gene and cluster id to the dataframe

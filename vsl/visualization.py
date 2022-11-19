@@ -84,7 +84,7 @@ def Show_Umap(sptFile, figname, h5data='matrix', is_spatial=True, key='ground_tr
         adata = Filter_genes(adata)
         from clu.Cluster_leiden import Spatial_Cluster_Analysis
         adata = Spatial_Cluster_Analysis(adata)
-    fig, axs = plt.subplots(1, 1, figsize=(3, 3), constrained_layout=True)
+    fig, axs = plt.subplots(1, 1, figsize=(9, 4), constrained_layout=True)
     sc.pl.umap(adata, ax=axs, color=key, show=False, palette=sc.pl.palettes.default_20, size=12)
     axs.set_title(title)
     fig.savefig(figname, dpi=400)
@@ -125,6 +125,37 @@ def Show_Domain_and_Composition(sptFile, cell_type):
     fig.show()
 
 
+def Show_intersection_genes(sptFile, gene, folder, sptFile1=None, h5data='matrix', cell_type=""):
+    adata_sp = Load_spt_to_AnnData(sptFile, h5data)
+    fig, axs = plt.subplots(1, 1, figsize=(3, 3), constrained_layout=True)
+    adata_sp = Remove_mito_genes(adata_sp)
+    adata_sp = Filter_genes(adata_sp)
+    from clu.Cluster_leiden import Spatial_Cluster_Analysis
+    adata_sp = Spatial_Cluster_Analysis(adata_sp)
+    adata_sp.var_names = pd.Series(adata_sp.var_names).apply(str.upper)
+    sc.pl.spatial(adata_sp, ax=axs, color=gene, show=False)
+    fig.savefig(folder+'/'+gene+"_"+cell_type+".eps", dpi=400)
+
+    fig, axs = plt.subplots(1, 1, figsize=(3, 3), constrained_layout=True)
+    adata_sc1 = Load_spt_sc_to_AnnData(sptFile, "scRNA_seq")
+    adata_sc1 = Remove_mito_genes(adata_sc1)
+    adata_sc1 = Filter_genes(adata_sc1)
+    from clu.Cluster_leiden import Spatial_Cluster_Analysis
+    adata_sc1 = Spatial_Cluster_Analysis(adata_sc1)
+    adata_sc1.var_names = pd.Series(adata_sc1.var_names).apply(str.upper)
+    sc.pl.umap(adata_sc1, ax=axs, color=gene, show=False)
+    fig.savefig(folder+'/'+gene+"_"+cell_type+"_sc1.eps", dpi=400)
+
+    if sptFile1 is not None:
+        fig, axs = plt.subplots(1, 1, figsize=(3, 3), constrained_layout=True)
+        adata_sc2 = Load_spt_sc_to_AnnData(sptFile1, "scRNA_seq")
+        adata_sc2 = Remove_mito_genes(adata_sc2)
+        adata_sc2 = Filter_genes(adata_sc2)
+        from clu.Cluster_leiden import Spatial_Cluster_Analysis
+        adata_sc2 = Spatial_Cluster_Analysis(adata_sc2)
+        adata_sc2.var_names = pd.Series(adata_sc2.var_names).apply(str.upper)
+        sc.pl.umap(adata_sc2, ax=axs, color=gene, size=2, show=False)
+        fig.savefig(folder + '/' + gene +"_" +cell_type + "_sc2.eps", dpi=400)
 
 
 def Show_Heatmap(sptFile, figname, h5data='matrix', title=None):

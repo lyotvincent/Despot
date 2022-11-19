@@ -40,7 +40,7 @@ class sptInfo:
                         dat = bytes2str(dat)
                     dat = pd.DataFrame(dat, columns=[key])
                     self.map_chains = pd.concat([self.map_chains, dat], axis=1)
-        self.map_chains.index = self.map_chains['cell-type']
+            self.map_chains.index = self.map_chains['cell-type']
 
     def get_spmatrix(self):
         return list(self.spmatrixs.keys())
@@ -67,11 +67,11 @@ class sptInfo:
             else:
                 return None
 
-    def get_map_chains(self, cell_type):
+    def get_map_chains(self, cell_type=None):
         if cell_type in self.map_chains.index:
             return self.map_chains.loc[cell_type, :]
         else:
-            return None
+            return self.map_chains
 
 
 # the params are saved in a .json config
@@ -189,15 +189,28 @@ def Load_spt_to_AnnData(sptFile: str,
     h5dcv = h5dat['deconv']
     if len(h5dcv.keys()) > 0:
         for dcv in h5dcv.keys():
-            print(dcv)
+            # print(dcv)
             shape = h5dcv[dcv]['shape']
             weights = np.array(h5dcv[dcv]['weights']).reshape(shape[1], shape[0]).T
             barcodes = bytes2str(h5dcv[dcv]['barcodes'][:])
             cell_type = bytes2str(h5dcv[dcv]['cell_type'][:])
             w = pd.DataFrame(weights, index=barcodes, columns=cell_type)
-            print(w)
+            # print(w)
             adata.obsm[dcv] = w
     print("Loading deconvolution data finished.")
+
+    if 'abundance' in h5dat.keys():
+        h5abd = h5dat['abundance']
+        if len(h5abd.keys()) > 0:
+            for abd in h5abd.keys():
+                # print(dcv)
+                shape = h5abd[abd]['shape']
+                weights = np.array(h5abd[abd]['weights']).reshape(shape[1], shape[0]).T
+                barcodes = bytes2str(h5abd[abd]['barcodes'][:])
+                cell_type = bytes2str(h5abd[abd]['cell_type'][:])
+                w = pd.DataFrame(weights, index=barcodes, columns=cell_type)
+                # print(w)
+                adata.obsm[abd] = w
     h5_obj.close()
     return adata
 
@@ -554,10 +567,10 @@ def Save_spt_from_BestDict(sptFile, Best_dict: dict):
     with h5.File(sptFile, 'a') as f:
         if "/map_chains" not in f:
             f.create_group("/map_chains")
-        for cols in best_df.columns:
-            dat = list(best_df[cols])
-            if type(dat) == str:
-                f.create_dataset("map_chains/"+cols, data=str2bytes(dat))
-            else:
-                f.create_dataset("map_chains/"+cols, data=dat)
+            for cols in best_df.columns:
+                dat = list(best_df[cols])
+                if type(dat) == str:
+                    f.create_dataset("map_chains/"+cols, data=str2bytes(dat))
+                else:
+                    f.create_dataset("map_chains/"+cols, data=dat)
 
