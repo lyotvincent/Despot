@@ -1,3 +1,5 @@
+import numpy as np
+
 from utils.common import *
 
 # summary of a sptFile
@@ -36,11 +38,14 @@ class sptInfo:
             with h5.File(self.sptFile, 'r') as f:
                 for key in f['map_chains'].keys():
                     dat = f['map_chains'][key][:]
-                    if type(dat[0]) == bytes:
+                    if key in ['cell-type', 'clu', 'dct', 'dcv']:
                         dat = bytes2str(dat)
+                    elif key == 'domain':
+                        dat = bytes2tuple(dat)
                     dat = pd.DataFrame(dat, columns=[key])
                     self.map_chains = pd.concat([self.map_chains, dat], axis=1)
             self.map_chains.index = self.map_chains['cell-type']
+            print(self.map_chains)
 
     def get_spmatrix(self):
         return list(self.spmatrixs.keys())
@@ -75,19 +80,30 @@ class sptInfo:
 
 
 # the params are saved in a .json config
-def Load_json_configs(path: str, encoding: str = 'utf8'):
+def Load_json_configs(path: str, encoding: str = 'utf-8'):
     with open(path, 'r', encoding=encoding) as fp:
         json_data = json.load(fp)
     return json_data
 
 # convert bytes to str in array
 def bytes2str(arr):
-    arr = np.array(list(map(lambda x: str(x, encoding='utf-8'), arr)))
+    arr = np.array(list(map(lambda x: str(x, encoding='utf8'), arr)))
     return arr
 
 # conver str to bytes in array
 def str2bytes(arr):
     arr = np.array(list(map(lambda x: bytes(x, encoding='utf-8'), arr)))
+    return arr
+
+
+def bytes2tuple(arr):
+    arr = np.array(list(map(lambda x: tuple(x), arr)), dtype=object)
+    arr = np.array(list(map(lambda x: (0, ) if len(x)==0 else x, arr)))
+    return arr
+
+
+def tuple2bytes(arr):
+    arr = np.array(list(map(lambda x: bytes(x), arr)))
     return arr
 
 
@@ -304,7 +320,7 @@ def Save_tsv_from_scData(out_dir, scdata):
     mta.to_csv(opth_mta, sep='\t', header=True, index=True, index_label='cell')
 
 
-def Save_tsv_from_spData(out_dir, spdata):
+def Save_tsv_from_spData(out_dir, spdata, filename='spt_data.tsv'):
     if not osp.exists(out_dir):
         os.mkdir(out_dir)
     mat = spdata.X.todense()
@@ -312,7 +328,7 @@ def Save_tsv_from_spData(out_dir, spdata):
     spdata.var_names_make_unique()
     cnt = pd.DataFrame(mat, index=spdata.obs_names,
                        columns=spdata.var_names)
-    opth_cnt = osp.join(out_dir, 'spt_data.tsv')
+    opth_cnt = osp.join(out_dir, filename)
     cnt.to_csv(opth_cnt, sep='\t', header=True, index=True, index_label='cell')
 
 
@@ -567,10 +583,12 @@ def Save_spt_from_BestDict(sptFile, Best_dict: dict):
     with h5.File(sptFile, 'a') as f:
         if "/map_chains" not in f:
             f.create_group("/map_chains")
-            for cols in best_df.columns:
-                dat = list(best_df[cols])
-                if type(dat) == str:
-                    f.create_dataset("map_chains/"+cols, data=str2bytes(dat))
-                else:
-                    f.create_dataset("map_chains/"+cols, data=dat)
+        for cols in best_df.columns:
+            dat = list(best_df[cols])
+            if type(dat[0]) == str:
+                f.create_dataset("map_chains/"+cols, data=str2bytes(dat))
+            elif type(dat[0]) == tuple:
+                f.create_dataset("map_chains/" + cols, data=tuple2bytes(dat))
+            else:
+                f.create_dataset("map_chains/"+cols, data=dat)
 

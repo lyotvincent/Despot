@@ -370,6 +370,7 @@ def Generate_New_idents(sptFile, Best_dict):
     new_idents[new_idents['domain'] == ""] = "NA"
 
 
+# generate venn graph for multimodal integration analysis
 def Gen_venn(sptFile, folder, Best_dict=None, show_genes=1, cell_filter=None):
     sptinfo = sptInfo(sptFile)
     Best_df = sptinfo.get_map_chains()
@@ -409,11 +410,13 @@ def Gen_venn(sptFile, folder, Best_dict=None, show_genes=1, cell_filter=None):
     return inter_genes
 
 
-def Gen_venn2(adata_sp, adata_sc, domain, clu_mtd, cell_type, folder, pval=10e-6, effect=0.2):
+def Gen_venn2(adata_sp, adata_sc, domain, clu_mtd, cell_type, folder, pval=10e-6, effect=0.5):
+    # generating venn graph for intersection genes from scRNA-seq and ST
     from matplotlib_venn import venn2
     sc.pp.log1p(adata_sp)
     sc.pp.log1p(adata_sc)
     adata_sp.obs[clu_mtd] = adata_sp.obs[clu_mtd].astype('str')
+
     if type(domain) == tuple:
         groups = [str(i) for i in domain]
     else:
@@ -425,17 +428,19 @@ def Gen_venn2(adata_sp, adata_sc, domain, clu_mtd, cell_type, folder, pval=10e-6
     f = venn2(
         subsets=[set(sp_gene.iloc[:, 0]), set(sc_gene.iloc[:, 0])],
         set_labels=('domain:' + str(domain), cell_type),
-        alpha=0.8,  # 透明度
+        alpha=0.8,  # Transparency
         normalize_to=1.0, ax=axs)
 
-    f.get_patch_by_id('11').set_linestyle('--')  # 左圈外框线型
-    f.get_patch_by_id('11').set_edgecolor('white')  # 中间圈外框颜色
+    f.get_patch_by_id('11').set_linestyle('--')  # Middle ring outer frame line type
+    f.get_patch_by_id('11').set_edgecolor('white')  # Middle ring outer frame line color
     inter_genes = (set(sp_gene.iloc[:, 0]).intersection(set(sc_gene.iloc[:, 0])))
     inter_genes = pd.DataFrame(list(inter_genes), columns=['names'])
     inter_genes['scores'] = np.mean(np.array([list(sp_gene.loc[list(inter_genes['names']), 'scores']),
                                               list(sc_gene.loc[inter_genes['names'], 'scores'])]), axis=0)
     inter_genes = inter_genes.sort_values(by=['scores'], ascending=False)
-    axs.annotate('intersection genes',
+    bg_genes = Gen_Background_genes(adata_sp, adata_sc)
+    mia = MIA_analysis(len(inter_genes), len(bg_genes), len(sc_gene), len(sp_gene))
+    axs.annotate('MIA:'.format(mia),
                  color='black',
                  xy=f.get_label_by_id('11').get_position() + np.array([0, 0.05]),
                  xytext=(20, 100),
@@ -512,47 +517,59 @@ def spTRS_DE(sptFile, Best_dict, cell_type1, cell_type2):
     return de
 
 
-# generate differential expressed genes
+# generate differential expressed genes (adjusted p value < 10e-5, t-test_overestim_var; effect > 0.2, cohen's d)
 def Gen_DEgenes(adata, groupby, groups, pval=10e-5, effect=0.2):
     sc.tl.rank_genes_groups(adata, groupby=groupby, groups=groups)
     sp_d = cohensD_eff(adata, groupby, groups)
     DE_genes = pd.DataFrame(adata.uns['rank_genes_groups']['names'])
     DE_genes = pd.DataFrame({"names": DE_genes.iloc[:, 0].apply(str.upper),
-                            "scores": pd.DataFrame(adata.uns['rank_genes_groups']['scores']).iloc[:, 0],
-                            "pvals": pd.DataFrame(adata.uns['rank_genes_groups']['pvals']).iloc[:, 0],
-                            "pvals_adj": pd.DataFrame(adata.uns['rank_genes_groups']['pvals_adj']).iloc[:, 0],
-                            "logfoldchanges": pd.DataFrame(adata.uns['rank_genes_groups']['logfoldchanges']).iloc[:, 0],})
+                             "scores": pd.DataFrame(adata.uns['rank_genes_groups']['scores']).iloc[:, 0],
+                             "pvals": pd.DataFrame(adata.uns['rank_genes_groups']['pvals']).iloc[:, 0],
+                             "pvals_adj": pd.DataFrame(adata.uns['rank_genes_groups']['pvals_adj']).iloc[:, 0],
+                             "logfoldchanges": pd.DataFrame(adata.uns['rank_genes_groups']['logfoldchanges']).iloc[:, 0]
+                             })
     DE_genes.index = DE_genes['names']
     DE_genes = DE_genes[DE_genes['pvals_adj'] < pval]
     sp_d = sp_d[sp_d["effect"] > effect]
-    for id in DE_genes.index:
-        if id in sp_d.index:
-            DE_genes.loc[id, "effect"] = sp_d.loc[id, 'effect']
+    for idx in DE_genes.index:
+        if idx in sp_d.index:
+            DE_genes.loc[idx, "effect"] = sp_d.loc[idx, 'effect']
     DE_genes = DE_genes[DE_genes["effect"] > effect]
     return DE_genes
 
-# cohen's D effective size
+
+def Gen_Background_genes(adata_sp: ad.AnnData, adata_sc1: ad.AnnData, adata_sc2=None):
+    sp_genes = list(map(lambda x: str.upper(x), list(adata_sp.var_names)))
+    sc1_genes = list(map(lambda x: str.upper(x), list(adata_sc1.var_names)))
+    if adata_sc2 is not None:
+        sc2_genes = pd.DataFrame(adata_sc2.var_names).apply(str.upper)
+        sc_genes = set(sc1_genes).intersection(set(sc2_genes.iloc[:, 0]))
+    else:
+        sc_genes = set(sc1_genes)
+    bg_genes = list(sc_genes.intersection(set(sp_genes)))
+    return bg_genes
+
+
+# cohen's d effective size
 def cohensD_eff(adata, groupby, groups):
     groups = [type(adata.obs[groupby][0])(i) for i in groups]
     idx = adata.obs[groupby].isin(groups)
     adata.obs_names_make_unique()
-    nidx = ~idx
+    nidx = ~idx  # select the remaining index
     adata1 = adata[idx].copy()
     adata2 = adata[nidx].copy()
-    cohens_ds = []
     x1 = np.array(adata1.X.todense())
     x2 = np.array(adata2.X.todense())
     nx1 = len(x1)
     nx2 = len(x2)
     dof = nx1 + nx2 - 2
     cohens_d = abs(np.mean(x1, axis=0) - np.mean(x2, axis=0)) / np.sqrt(
-                   ((nx1 - 1) * np.std(x1, axis=0, ddof=1) ** 2 + (nx2 - 1) * np.std(x2, axis=0, ddof=1) ** 2) / dof)
+        ((nx1 - 1) * np.std(x1, axis=0, ddof=1) ** 2 + (nx2 - 1) * np.std(x2, axis=0, ddof=1) ** 2) / dof)
     cohens_ds = pd.DataFrame(cohens_d, index=[str.upper(i) for i in adata.var_names], columns=['effect'])
     return cohens_ds
 
 
-
-# multimodel intersection analysis, using hypergeometric cumulative distribution
+# multimodal intersection analysis, using hyper-geometric cumulative distribution
 def MIA_analysis(inter_hvg, total_genes, sc_hvg, sp_hvg):
     return -np.log10(hypergeom.sf(inter_hvg, total_genes, sc_hvg, sp_hvg))
 

@@ -738,7 +738,7 @@ Load_sc_to_SCE <- function(scbar, scfea, scmat, scgth = NA, scgnm = NA){
                                 colData = DataFrame(barcodes = bar))
   }
   else{
-    gth <- fread(scgth, header = T)
+    gth <- fread(scgth)
     gth <- gth[[scgnm]]
     sce <- SingleCellExperiment(assays = list(counts = mat),
                                 rowData = DataFrame(gene_name = fea),

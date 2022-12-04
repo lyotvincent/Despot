@@ -222,6 +222,26 @@ Save_TabulaData_to_tsv <- function(outdir, sce){
   write.table(mta, file = paste0(outdir, '/mta.tsv'), sep = '\t', quote = F)
 }
 
+Save_Seurat_to_tsv <- function(outdir, seu0){
+  if(!dir.exists(outdir)){
+    dir.create(outdir)
+  }
+  # save mtx
+  cnt <- seu0@assays$SCT@counts
+  writeMM(cnt, file = paste0(outdir, '/matrix.mtx'))
+  # save barcodes
+  bar <- colnames(seu0)
+  write.table(bar, file = paste0(outdir, '/barcodes.tsv'), sep = '\t', quote = F, row.names = F, col.names = F)
+  # save features
+  fea <- rownames(seu0)
+  write.table(fea, file = paste0(outdir, '/features.tsv'), sep = '\t', quote = F, row.names = F, col.names = F)
+  # save annotation
+  mta <- data.frame(orig.ident = as.character(seu0@meta.data$orig.ident),
+                    bio_celltype = as.character(seu0@active.ident),
+                    row.names = bar)
+  write.table(mta, file = paste0(outdir, '/mta.csv'), sep = ',', quote = F)
+}
+
 
 Load_ref_to_SCE <- function(refdir){
   library(SingleCellExperiment)
