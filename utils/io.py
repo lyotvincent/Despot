@@ -1,5 +1,3 @@
-import numpy as np
-
 from utils.common import *
 
 # summary of a sptFile
@@ -45,7 +43,6 @@ class sptInfo:
                     dat = pd.DataFrame(dat, columns=[key])
                     self.map_chains = pd.concat([self.map_chains, dat], axis=1)
             self.map_chains.index = self.map_chains['cell-type']
-            print(self.map_chains)
 
     def get_spmatrix(self):
         return list(self.spmatrixs.keys())
@@ -306,6 +303,32 @@ def Load_spt_to_Benchmark(sptFile, h5data, mode: str = "cluster"):
         return bm
 
 
+# Save subset under existing h5datas
+def Save_spt_from_Subset(sptFile:str, h5data:str, subset_name:str, refer_idx=None, force=False):
+    sptinfo = sptInfo(sptFile)
+    # if it's required to save a reference to existing h5data, using ref_idx to select the subset.
+    if refer_idx is not None:
+        if type(refer_idx[0] == str):
+            refer_idx = str2bytes(refer_idx)
+        with h5.File(sptFile, 'a') as f:
+            # create group
+            if h5data + '/' + subset_name in f:
+                if force:
+                    for key in f[h5data + '/' + subset_name].keys():
+                        f.__delitem__(h5data + '/' + subset_name + '/' + key)
+                    f.__delitem__(h5data + '/' + subset_name)
+                else:
+                    print("Subset Reference {0} is existed.".format(h5data + '/' + subset_name))
+                    return
+            f.create_group(h5data + '/' + subset_name)
+            f.create_dataset(h5data + '/' + subset_name + '/barcodes', data=refer_idx)
+            f.create_dataset(h5data + '/' + subset_name + '/type', data=b"reference")
+            f.create_group(h5data + '/' + subset_name + '/deconv')
+            f.create_group(h5data + '/' + subset_name + '/idents')
+        print("Subset Reference is saved in {0}".format(h5data + '/' + subset_name))
+    return
+
+
 def Save_tsv_from_scData(out_dir, scdata):
     if not osp.exists(out_dir):
         os.mkdir(out_dir)
@@ -397,8 +420,8 @@ def Save_spt_from_stlearn(sptFile, stdata, h5data='matrix'):
 
 
 def Save_spt_from_SpatialDE(sptFile, adata, h5data='matrix'):
-    # FSV: Fraction of variance explained by spatial variation 由空间变异解释的方差比例
-    # P value: SpatialDE-logP Value,  表示空间变异的显著性
+    # FSV: Fraction of variance explained by spatial variation
+    # P value: SpatialDE-logP Value
     with h5.File(sptFile, 'a') as f:
         # create group
         if h5data + '/fearures/is_HVG/SpatialDE' not in f:

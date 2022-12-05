@@ -33,6 +33,10 @@ ground.name <- params$ground_name
 
 # Init sptFile
 Init_spt(sptFile)
+
+# Save important configs to sptFile
+Save_cfg_to_spt(sptFile, params)
+
 Save_10X_to_spt(dir = dataPath,
                 sptFile = sptFile,
                 filtered.matrix = filtered.matrix,

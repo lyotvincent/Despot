@@ -292,3 +292,129 @@ Load_sptsc_to_Seurat <- function(sptFile, h5data = "scRNA_seq"){
   seu@meta.data$orig.ident <- h5_obj$idents$annotation
   return(seu)
 }
+
+# Load Tabula scRNA-seq data to SingleCellExperiment
+Load_TabulaData_to_SCE <- function(TabulaType, TabulaData){
+  library(TabulaMurisSenisData)
+  listData <- listTabulaMurisSenisTissues(TabulaType)
+  if(TabulaData %in% listData){
+    if(TabulaType == "Droplet"){
+      sce <- TabulaMurisSenisDroplet(tissues = TabulaData)[[TabulaData]]
+    }else if(TabulaType == "FACS"){
+      sce <- TabulaMurisSenisFACS(tissues = TabulaData)[[TabulaData]]
+    }else{
+      message("Tabula Type Error.")
+      return(FALSE)
+    }
+  }else{
+    message(paste0("No TabulaData:", TabulaData, " exist in ", TabulaType, "."))
+    return(FALSE)
+  }
+  return(sce)
+}
+
+# Load 10X scRNA-seq data to SingleCellExperiment
+Load_10Xsc_to_SCE <- function(tenXdir){
+  library(Seurat)
+  library(stringr)
+  sce <- Read10X(tenXdir)
+  gene_name <- rownames(sce)
+  gene_name <- str_to_upper(gene_name)
+  sce <- SingleCellExperiment(assays = list(counts = sce),
+                              rowData = DataFrame(gene_name = gene_name),
+                              colData = DataFrame(barcodes = colnames(sce)))
+  return(sce)
+}
+
+# Load scRNA-seq data by the users' definition: mtx barcodes and features
+Load_sc_to_SCE <- function(scbar, scfea, scmat, scgth = NA, scgnm = NA){
+  bar <- fread(scbar, header = F)[[1]]
+  fea <- fread(scfea, header = F)[[1]]
+  library(stringr)
+  fea <- str_to_upper(fea)
+  mat <- readMM(scmat)
+  mat <- as(mat, "CsparseMatrix")
+  rownames(mat) <- fea
+  colnames(mat) <- bar
+  if(is.na(scgth)){
+    sce <- SingleCellExperiment(assays = list(counts = mat),
+                                rowData = DataFrame(gene_name = fea),
+                                colData = DataFrame(barcodes = bar))
+  }
+  else{
+    gth <- fread(scgth)
+    gth <- gth[[scgnm]]
+    sce <- SingleCellExperiment(assays = list(counts = mat),
+                                rowData = DataFrame(gene_name = fea),
+                                colData = DataFrame(barcodes = bar,
+                                                    free_annotation = gth))
+    colLabels(sce) <- gth
+  }
+  return(sce)
+}
+
+# Load scRNA-seq data by the users' definition: a txt file
+Load_txtsc_to_SCE <- function(scmat, scgth = NA, scgnm = NA){
+  mat <- fread(scmat)
+  fea <- toupper(mat[[1]])
+  mat <- as.matrix(mat[, -1])
+  rownames(mat) <- fea
+  bar <- colnames(mat)
+  mat <- as(mat, "CsparseMatrix")
+  if(is.na(scgth)){
+    sce <- SingleCellExperiment(assays = list(counts = mat),
+                                rowData = DataFrame(gene_name = fea),
+                                colData = DataFrame(barcodes = bar))
+  }
+  else{
+    gth <- fread(scgth, header = T)
+    gth <- gth[[scgnm]]
+    sce <- SingleCellExperiment(assays = list(counts = mat),
+                                rowData = DataFrame(gene_name = fea),
+                                colData = DataFrame(barcodes = bar,
+                                                    free_annotation = gth))
+    colLabels(sce) <- gth
+  }
+  return(sce)
+}
+
+
+Load_h5adsc_to_SCE <- function(scmat, scgnm = NA){
+  scmat <- h5read(scmat, '/')
+  if("raw" %in% attr(scmat, "names")){
+    X <- scmat$raw$X
+    var <- scmat$raw$var
+  } else{
+    X <- scmat$X
+    var <- scmat$var
+  }
+  # generate factors using categories
+  for(name in attr(var[["__categories"]], "names")){
+    if(length(var[[name]]) >= length(var[["__categories"]][[name]])){
+      var[[name]] <- factor(var[[name]], labels = var[["__categories"]][[name]])
+    }
+  }
+  var[["__categories"]] <- NULL
+  obs <- scmat$obs
+  for(name in attr(obs[["__categories"]], "names")){
+    if(length(obs[[name]]) >= length(obs[["__categories"]][[name]]))
+      obs[[name]] <- factor(obs[[name]], labels = obs[["__categories"]][[name]])
+  }
+  obs[["__categories"]] <- NULL
+  dims <- c(length(scmat$var[["_index"]]), length(scmat$obs[["_index"]]))
+  dat <- sparseMatrix(i = X$indices[] + 1,
+                      p = X$indptr[],
+                      x = as.numeric(X$data[]),
+                      dims = dims,
+                      dimnames = list(as.character(scmat$var[["_index"]]), as.character(scmat$obs[["_index"]])),
+                      repr = "C")
+  sce <- SingleCellExperiment(assays = list(counts = dat),
+                              rowData = DataFrame(data.frame(var)),
+                              colData = DataFrame(data.frame(obs)))
+
+  # add ground truth
+  if(!is.na(scgnm)){
+    sce@colData$free_annotation <- obs[[scgnm]]
+  }
+  return(sce)
+}

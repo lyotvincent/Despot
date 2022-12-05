@@ -319,6 +319,7 @@ def spTRS_Estimate(sptFile, cfg, force=False):
 
 
 def spTRS_Deconv(sptFile, cfg, name='temp', force=False):
+    sptinfo = sptInfo(sptFile)
     do_scRNA_seq = False
     with h5.File(sptFile, 'r') as f:
         if 'scRNA_seq' not in f or force is True:
@@ -335,7 +336,7 @@ def spTRS_Deconv(sptFile, cfg, name='temp', force=False):
             os.system("Rscript sc/Generate_TabulaData.R")
     h5datas = []
     # whether need Decontamination
-    Decont = cfg['Decontamination']
+    Decont = sptinfo.get_spmatrix()
     for dec in Decont:
         if dec == "SpotClean":
             h5data = 'SpotClean_mat'
@@ -365,7 +366,10 @@ def spTRS_Deconv(sptFile, cfg, name='temp', force=False):
 # do deconvolution for certain subset
 def spTRS_SubsetDeconv(sptFile, h5data="matrix", clu_mtd=None, domain=None):
     adata = Load_spt_to_AnnData(sptFile, h5data)
-    pass
+    adata_sub = adata[adata.obs[clu_mtd] == domain]
+    idx = list(adata_sub.obs_names)
+    Save_spt_from_Subset(sptFile, h5data=h5data, subset_name=clu_mtd+"_"+str(domain), refer_idx=idx, force=False)
+    spTRS_Deconv(sptFile, cfg)
 
 
 
