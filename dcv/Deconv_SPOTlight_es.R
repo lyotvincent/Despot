@@ -10,16 +10,16 @@ source("sptranr/R/_scRNA-seq.R")
 # decoding params
 params <- fromJSON(file = "params.json")
 sptFile <- params$sptFile
-params <- h5read(sptFile, "configs")
+refdir <- paste0(params$tempdir, "/references")
+
 
 for(decont in params$Decontamination){
   h5data <- Create_spt_h5data(decont)
-
   # read References
-  sce <- Load_sptsc_to_SCE(sptFile, "scRNA_seq")
+  sce <- Load_sptsc_to_SCE(sptFile, "sc-ref-es")
   rownames(sce) <- toupper(rownames(sce))
   sce <- Analysis_scRNA_seq(sce)
-  # sce@metadata[['HVGs']] <- rownames(sce)
+  sce@metadata[['HVGs']] <- rownames(sce)
 
   # Load the spatial transcriptome data to SE: SpatialExperiment
   spe <- Load_spt_to_SE(sptFile, h5data)
@@ -28,5 +28,5 @@ for(decont in params$Decontamination){
   spotlight <- Deconvolution_SPOTlight(spe, sce)
   rownames(spotlight$mat) <- spe@colData$Barcode
   colnames(spotlight$mat) <- attr(table(sce$free_annotation), 'names')
-  Save_spt_from_SPOTlight(sptFile, h5data, spotlight, pp_mtd = "raw")
+  Save_spt_from_SPOTlight(sptFile, h5data, spotlight, pp_mtd = "es")
 }

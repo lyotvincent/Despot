@@ -7,7 +7,8 @@ import torch.nn.functional as F
 from sklearn.preprocessing import MinMaxScaler
 # Single Cell Referenecs Down Sampling Through Graph Convolution Network
 
-
+device = "cuda" if torch.cuda.is_available() else "cpu"
+print(f"Using {device} device")
 # VAE model
 class VAE(nn.Module):
     def __init__(self, count_size = 3000, h_dim=400, z_dim=20):
@@ -57,6 +58,7 @@ def Make_References(sptFile, count_size=3000,
         scdata = scdata[:, scdata.uns['HVGs']]
     sc.pp.log1p(scdata)
     scdataset = scdata.X.todense()
+    scdataset = np.asarray(scdataset)
     uni_types = np.unique(scdata.obs['annotation'])
     scaler = MinMaxScaler()
     scdataset = scaler.fit_transform(scdataset)  # 注意，这里的values是array

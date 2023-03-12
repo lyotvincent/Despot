@@ -6,17 +6,14 @@ source("sptranr/R/_scRNA-seq.R")
 params <- fromJSON(file = "params.json")
 sptFile <- params$sptFile
 
+params <- h5read(sptFile, "configs")
+
 seu.sc <- Load_sptsc_to_Seurat(sptFile, h5data = "scRNA_seq")
 seu.sc <- Preprocess_Seurat(seu.sc, assay = "RNA")
 
 for(decont in params$Decontamination){
-  h5data <- "matrix"
-  if(decont == "SpotClean"){
-    h5data <- "SpotClean_mat"
-  }
-  if(decont == "SPCS"){
-    h5data <- "SPCS_mat"
-  }
+  h5data <- Create_spt_h5data(decont)
+
   imgdir <- paste0(params$dataPath, "/spatial")
 
   seu.sp <- Load_spt_to_Seurat(sptFile,imgdir, h5data)

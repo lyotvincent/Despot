@@ -10,10 +10,10 @@ from utils.geo import spTRS_Find_bestGroup, spTRS_group_correlation,\
 def Spt_init(sptFile: str, force: bool = False):
     # whether the file exists
     if os.path.isfile(sptFile) and force is False:
-        with h5.File(sptFile, 'r') as f:
-            if 'matrix' in f:
-                print("SptFile:" + sptFile + " has initialized, skip it.")
-                return
+        # check the corrections of sptFile
+        if Spt_check_corrections(sptFile):
+            return
+
     print("Initializing sptFile...")
     cmd = "Rscript utils/Init.R"
     os.system(cmd)
@@ -41,6 +41,10 @@ def Pip_decont(sptFile, method='none', force=False):
         os.system("Rscript dct/Decont_SPCS.R")
     elif method == 'SPROD':
         print("Decontamination method: SPROD.")
+        from dct.Decont_SPROD import sprod_pp, sprod_run, sprod_save
+        sprod_pp(sptFile, tempdir='h5ads/temps')
+        sprod_run(sprod_dir='h5ads/temps', out_dir='h5ads/temp_result', pythonPath=pythonPath)
+        sprod_save(sptFile, out_dir='h5ads/temp_result')
     elif method == 'none':
         print("Decontamination method: none.")
         return
@@ -48,7 +52,7 @@ def Pip_decont(sptFile, method='none', force=False):
 
 # we provide 7 inline methods for clustering and supports Squidpy and Giotto
 def Pip_cluster(sptFile, h5data, method='leiden', force=False, tif=None):
-    method_list = ['leiden', 'SpaGCN', 'stlearn', 'Seurat', 'BayesSpace', 'Giotto', 'Squidpy']
+    method_list = ['leiden', 'SpaGCN', 'stlearn', 'Seurat', 'BayesSpace', 'Giotto', 'Squidpy', 'SEDR']
     with h5.File(sptFile, 'r') as f:
         if method not in method_list:
             print("Clustering method:{0} has not been supported yet, default `leiden`.".format(method))
@@ -70,6 +74,11 @@ def Pip_cluster(sptFile, h5data, method='leiden', force=False, tif=None):
         adata = Spatial_Cluster_Analysis_SpaGCN(adata)
         Save_spt_from_SpaGCN_clu(sptFile, adata, h5data)
         # adata = Differential_Expression_Analysis(adata)
+    elif method == "SEDR":
+        from clu.Cluster_SEDR import sedr_run
+        adata = Load_spt_to_AnnData(sptFile, h5data)
+        adata = sedr_run(adata, n_clusters=20)
+        Save_spt_from_SEDR(sptFile, adata, h5data)
     elif method == 'BayesSpace':
         # Using R scripts
         os.system("Rscript clu/Cluster_BayesSpace.R")
@@ -78,7 +87,7 @@ def Pip_cluster(sptFile, h5data, method='leiden', force=False, tif=None):
         os.system("Rscript clu/Cluster_Seurat.R")
     elif method == "stlearn":
         from clu.Cluster_stlearn import Spatial_Cluster_Analysis_stSME
-        stdata = Load_spt_to_stData(sptFile, hires=hires, dataPath=dataPath)
+        stdata = Load_spt_to_stData(sptFile, count=h5data, hires=hires)
         stdata = Preprocess_stLearn(stdata)
         stdata = Spatial_Cluster_Analysis_stSME(stdata)
         Save_spt_from_stlearn(sptFile, stdata, h5data)
@@ -131,7 +140,7 @@ def Pip_estimate(sptFile, h5data='matrix', method='SpatialDE', force=False):
 
 def Pip_deconv(sptFile, h5data='matrix', method="stereoScope", name='temp', force=False):
     method_list = ['Cell2Location', 'SPOTlight', 'SPOTlight_vae', 'SPOTlight_es','spacexr', 'spacexr_es',
-                   'stereoScope', 'Seurat', 'Seurat_es', 'Giotto', 'stereoScope_es', 'stereoScope_na']
+                   'StereoScope', 'Seurat', 'Seurat_es', 'Giotto', 'StereoScope_es', 'StereoScope_na']
     with h5.File(sptFile, 'r') as f:
         if method not in method_list:
             print("Deconvolution method:{0} has not been supported yet, default `stereoScope`.".format(method))
@@ -175,36 +184,35 @@ def Pip_deconv(sptFile, h5data='matrix', method="stereoScope", name='temp', forc
             spacexr_pp_VAE(sptFile)
         # Using VAE for SPOTLight reference
         os.system("Rscript dcv/Deconv_SPOTlight_vae.R")
-    elif method == 'stereoScope':
+    elif method == 'StereoScope':
         from dcv.stereoScope import StereoScope_pp_VAE, StereoScope_run, StereoScope_pp_EasySample
         StereoScope_pp_VAE(sptFile, tempdir="h5ads", h5data=h5data, name=name)
-        # StereoScope_pp_EasySample(sptFile, h5data=h5data)
-        StereoScope_run(stereo_dir="h5ads/references/" + name, out_dir="h5ads/" + name + "_res")
+        StereoScope_run(stereo_dir="h5ads/references/" + name, pythonPath=pythonPath, out_dir="h5ads/" + name + "_res")
         Wfile = os.listdir("h5ads/" + name + "_res/spt_data")[0]
         Wfile = "h5ads/" + name + "_res/spt_data/" + Wfile
         Save_spt_from_StereoScope(sptFile, Wfile, h5data, name='StereoScope')
         os.remove(Wfile)
-    elif method == 'stereoScope_es':
+    elif method == 'StereoScope_es':
         # stereoScope_na represents using easy sample in single-cell data
         from dcv.stereoScope import StereoScope_pp_VAE, StereoScope_run, StereoScope_pp_EasySample
         StereoScope_pp_EasySample(sptFile, h5data=h5data)
-        StereoScope_run(stereo_dir="h5ads/references/" + name, out_dir="h5ads/" + name + "_res")
+        StereoScope_run(stereo_dir="h5ads/references/" + name, pythonPath=pythonPath, out_dir="h5ads/" + name + "_res")
         Wfile = os.listdir("h5ads/" + name + "_res/spt_data")[0]
         Wfile = "h5ads/" + name + "_res/spt_data/" + Wfile
         Save_spt_from_StereoScope(sptFile, Wfile, h5data, name='StereoScope_es')
         os.remove(Wfile)
-    elif method == 'stereoScope_na':
+    elif method == 'StereoScope_na':
         # stereoScope_na represents no preprocessing in single-cell data
         from dcv.stereoScope import StereoScope_pp_na, StereoScope_run
         StereoScope_pp_na(sptFile, h5data=h5data)
-        StereoScope_run(stereo_dir="h5ads/references/" + name, out_dir="h5ads/" + name + "_res")
+        StereoScope_run(stereo_dir="h5ads/references/" + name, pythonPath=pythonPath, out_dir="h5ads/" + name + "_res")
         Wfile = os.listdir("h5ads/" + name + "_res/spt_data")[0]
         Wfile = "h5ads/" + name + "_res/spt_data/" + Wfile
         Save_spt_from_StereoScope(sptFile, Wfile, h5data, name='StereoScope_na')
         os.remove(Wfile)
     elif method == 'Cell2Location':
         from dcv.cell2location import Cell2Location_run
-        adata = Cell2Location_run(sptFile)
+        adata = Cell2Location_run(sptFile, h5data)
         Save_spt_from_Cell2Location(sptFile, adata, h5data)
     elif method == 'Seurat':
         os.system("Rscript dcv/Deconv_Seurat.R")
@@ -239,6 +247,7 @@ def Pip_benchmark(sptFile, h5data):
 
 cfg = Load_json_configs("params.json")
 sptFile = cfg['sptFile']
+pythonPath = cfg["pythonPath"]
 
 # decode decontamination method
 decont_method = cfg['Decontamination']
@@ -275,6 +284,9 @@ def spTRS_Cluster(sptFile, cfg, force=False):
             h5datas.append(h5data)
         elif dec == "SPCS":
             h5data = "SPCS_mat"
+            h5datas.append(h5data)
+        elif dec == "SPROD":
+            h5data = "SPROD_mat"
             h5datas.append(h5data)
         elif dec == "none":
             h5data = "matrix"
@@ -318,8 +330,10 @@ def spTRS_Estimate(sptFile, cfg, force=False):
             Pip_estimate(sptFile, h5data, method=method, force=force)
 
 
-def spTRS_Deconv(sptFile, cfg, name='temp', force=False):
+def spTRS_Deconv(sptFile, cfg=None, name='temp', force=False):
     sptinfo = sptInfo(sptFile)
+    if cfg is None:
+        cfg = sptinfo.configs
     do_scRNA_seq = False
     with h5.File(sptFile, 'r') as f:
         if 'scRNA_seq' not in f or force is True:
@@ -335,27 +349,35 @@ def spTRS_Deconv(sptFile, cfg, name='temp', force=False):
             print("Using Tabula Data...")
             os.system("Rscript sc/Generate_TabulaData.R")
     h5datas = []
-    # whether need Decontamination
-    Decont = sptinfo.get_spmatrix()
-    for dec in Decont:
-        if dec == "SpotClean":
-            h5data = 'SpotClean_mat'
-            h5datas.append(h5data)
-        elif dec == "SPCS":
-            h5data = "SPCS_mat"
-            h5datas.append(h5data)
-        elif dec == "none":
-            h5data = "matrix"
-            h5datas.append(h5data)
-        else:
-            print("no matched Decontamination method, default `none`")
-
-    h5datas.append("matrix")
+    # whether you need Decontamination
+    Decont = cfg['Decontamination']
+    if type(Decont) != list:
+        Decont = [Decont]
+    with h5.File(sptFile, 'r') as f:
+        for dec in Decont:
+            if dec == "SpotClean":
+                h5data = 'SpotClean_mat'
+            elif dec == "SPCS":
+                h5data = "SPCS_mat"
+            elif dec == "SPROD":
+                h5data = "SPROD_mat"
+            elif dec == "none":
+                h5data = "matrix"
+            else:
+                h5data = dec
+            if h5data in f:
+                h5datas.append(h5data)
+            else:
+                print("{0} can't be found in sptFile.".format(h5data))
 
     methods = cfg['Deconvolution']
     f = open("log.txt", 'a')
     for h5data in h5datas:
         for method in methods:
+            if h5data == "SPROD_mat" and method == "Cell2Location":
+                print("Denoising by SPROD doesn't follow the GammaPoisson suppose in "
+                      "Cell2Location, skip it.")
+                continue
             start = time.time()
             Pip_deconv(sptFile, h5data, method=method, name=name, force=force)
             end = time.time()
@@ -368,8 +390,10 @@ def spTRS_SubsetDeconv(sptFile, h5data="matrix", clu_mtd=None, domain=None):
     adata = Load_spt_to_AnnData(sptFile, h5data)
     adata_sub = adata[adata.obs[clu_mtd] == domain]
     idx = list(adata_sub.obs_names)
+    subset_name = clu_mtd+"_"+str(domain)
     Save_spt_from_Subset(sptFile, h5data=h5data, subset_name=clu_mtd+"_"+str(domain), refer_idx=idx, force=False)
-    spTRS_Deconv(sptFile, cfg)
+    Save_spt_from_configs(sptFile, {"Decontamination": subset_name})
+    spTRS_Deconv(sptFile)
 
 
 
@@ -419,8 +443,8 @@ name = cfg['name']
 Spt_init(sptFile=sptFile)
 spTRS_Decont(sptFile, cfg)
 spTRS_Cluster(sptFile, cfg)
-# spTRS_Estimate(sptFile, cfg, force=True)
-# spTRS_Deconv(sptFile, cfg)
+# # spTRS_Estimate(sptFile, cfg, force=True)
+spTRS_Deconv(sptFile, cfg)
 # Best_dict, Groups = spTRS_Find_bestGroup(sptFile)
 folder = "subcluster"
 # comp, corr, p_val = spTRS_group_correlation(sptFile, Best_dict, alpha=1)

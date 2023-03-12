@@ -125,6 +125,120 @@ def Show_Domain_and_Composition(sptFile, cell_type):
     fig.show()
 
 
+def Show_bar_composition(sptFile, h5data, method="Cell2Location", subtype="Leiden"):
+    info = sptInfo(sptFile)
+
+    dcv_mtds = info.get_dcv_methods(h5data)
+    adata = Load_spt_to_AnnData(sptFile, h5data)
+    adata = adata[adata.obs['BayesSpace'] == 6]
+    adata = Remove_mito_genes(adata)
+    adata = Filter_genes(adata)
+    from clu.Cluster_leiden import Spatial_Cluster_Analysis
+    adata = Spatial_Cluster_Analysis(adata)
+    import scipy.stats as stats
+    adata = adata[adata.obs['SpaGCN'] != 0].copy()
+    adata.obs['SpaGCN'][adata.obs['image_col'] < 4000] = 1
+    df1 = pd.DataFrame(adata.obsm[method])
+    df = pd.concat([df1, adata.obs[subtype]], axis=1)
+    invasive = df[df["SpaGCN"] == 1]
+    dcis = df[df["SpaGCN"] == 3]
+    for ct in df1.columns:
+        print(ct, stats.ttest_ind(invasive[ct], dcis[ct]))
+
+    # important genes
+    focus_genes = ["ENTPD1",'PDCD1', "CD200", "IL7R", "HAVCR2", "CXCL13", "TIGIT", "TCF7", "ZNF683", "GZMK", "GZMA", "LAG3"]
+    df = pd.concat([adata.obs["SpaGCN"], pd.DataFrame(adata[:, focus_genes].X.toarray(),
+                                     columns=focus_genes, index=adata.obs_names)], axis=1)
+    fig, axs = plt.subplots(1, 1, figsize=(5.3, 4))
+    sns.violinplot(x="SpaGCN", y='ENTPD1', data=df, ax=axs, width=0.7, inner=None,
+                   palette=['#82a7a9', '#c86c86', '#b3999b'])
+    sns.swarmplot(x="SpaGCN", y='ENTPD1', data=df, ax=axs, color='#404040')
+    axs.set_xticks(ticks=[0, 1], labels=['invasive cancer', 'DCIS'], fontname="sans-serif", fontsize=12)
+    axs.set_yticks(ticks=list(range(2)), fontname="sans-serif", fontsize=14)
+    axs.set_ylabel(ylabel="Enrichment score", fontname="sans-serif", fontsize=14)
+    axs.set_xlabel(xlabel="", fontname="sans-serif", fontsize=14)
+    fig.show()
+
+    # terminal Tex
+    method="Cell2Location"
+    df1 = pd.DataFrame(adata.obsm[method])
+    df = pd.concat([df1, adata.obs[subtype]], axis=1)
+    fig, axs = plt.subplots(1, 1, figsize=(5.3, 4))
+    sns.violinplot(x="SpaGCN", y='CD200+ terminal Tex', data=df, ax=axs, width=0.7, inner=None, palette=['#82a7a9', '#c86c86', '#b3999b'])
+    sns.swarmplot(x="SpaGCN", y='CD200+ terminal Tex', data=df, ax=axs, color='#404040')
+    axs.set_xticks(ticks=[0,1], labels=['invasive cancer', 'DCIS'], fontname="sans-serif", fontsize=12)
+    axs.set_yticks(ticks=list(range(9)),fontname="sans-serif", fontsize=14)
+    axs.set_title("terminal Tex (p=0.0042**, t-test)", fontname="sans-serif", fontsize=14)
+    axs.set_ylabel(ylabel="Enrichment score", fontname="sans-serif", fontsize=14)
+    axs.set_xlabel(xlabel="", fontname="sans-serif", fontsize=14)
+    fig.savefig("subcluster/terminal Tex.eps", dpi=300)
+
+    # GZMK+ Tex
+    method="Seurat"
+    df1 = pd.DataFrame(adata.obsm[method])
+    df = pd.concat([df1, adata.obs[subtype]], axis=1)
+    fig, axs = plt.subplots(1, 1, figsize=(5.3, 4))
+    sns.violinplot(x="SpaGCN", y='GZMK+ Tex', data=df, ax=axs, width=0.7, inner=None, palette=['#82a7a9', '#c86c86', '#b3999b'])
+    sns.swarmplot(x="SpaGCN", y='GZMK+ Tex', data=df, ax=axs, color='#404040')
+    axs.set_xticks(ticks=[0,1], labels=['invasive cancer', 'DCIS'], fontname="sans-serif", fontsize=12)
+    axs.set_title("GZMK+ Tex (p<0.0001****, t-test)", fontname="sans-serif", fontsize=14)
+    axs.set_xlabel(xlabel="", fontname="sans-serif", fontsize=14)
+    axs.set_ylabel(ylabel="cellular composition", fontname="sans-serif", fontsize=14)
+    fig.savefig("subcluster/GZMK+ Tex.eps", dpi=300)
+
+    # Naive T
+    method="Seurat"
+    df1 = pd.DataFrame(adata.obsm[method])
+    df = pd.concat([df1, adata.obs[subtype]], axis=1)
+    fig, axs = plt.subplots(1, 1, figsize=(5.3, 4))
+    sns.violinplot(x="SpaGCN", y='TCF7+ Tn1', data=df, ax=axs,width=0.7, inner=None, palette=['#82a7a9', '#c86c86', '#b3999b'])
+    sns.swarmplot(x="SpaGCN", y='TCF7+ Tn1', data=df, ax=axs, color='#404040')
+    axs.set_xticks(ticks=[0,1], labels=['invasive cancer', 'DCIS'], fontname="sans-serif", fontsize=12)
+    axs.set_title("TCF7+ Tn1 (p<0.0001****, t-test)", fontname="sans-serif", fontsize=14)
+    axs.set_ylabel(ylabel="cellular composition", fontname="sans-serif", fontsize=14)
+    axs.set_xlabel(xlabel="", fontname="sans-serif", fontsize=14)
+    fig.savefig("subcluster/TCF7+ Tn1.eps", dpi=300)
+
+    # ZNF683+ Tm
+    method="SPOTlight"
+    df1 = pd.DataFrame(adata.obsm[method])
+    df = pd.concat([df1, adata.obs[subtype]], axis=1)
+    fig, axs = plt.subplots(1, 1, figsize=(5.3, 4))
+    sns.violinplot(x="SpaGCN", y='ZNF683+ Tm', data=df, ax=axs,width=0.7, inner=None, palette=['#82a7a9', '#c86c86', '#b3999b'])
+    sns.swarmplot(x="SpaGCN", y='ZNF683+ Tm', data=df, ax=axs, color='#404040')
+    axs.set_xticks(ticks=[0,1], labels=['invasive cancer', 'DCIS'], fontname="sans-serif", fontsize=12)
+    axs.set_title("ZNF683+ Tm (p<0.0001****, t-test)", fontname="sans-serif", fontsize=14)
+    axs.set_ylabel(ylabel="cellular composition", fontname="sans-serif", fontsize=14)
+    axs.set_xlabel(xlabel="", fontname="sans-serif", fontsize=14)
+    fig.savefig("subcluster/ZNF683+ Tm.eps", dpi=300)
+    for ct in df1.columns:
+        adata.obs[ct] = df1[ct]
+        fig, axs = plt.subplots(1, 1, figsize=(4, 4))
+        sc.pl.spatial(adata, color=ct, legend_loc=None, ax=axs)
+        fig.savefig("subcluster/"+ct+".eps", dpi=300)
+    # Cell2Location, spacexr, stereoScope, Seurat
+    # CD200+ Terminal Tex, pval=0.004 **, 0.047 *, 0.452, nan,
+    # GZMB+ Tex, pval=0.019 *, 0.045 *, 0.109, 0.005 **,
+    # TCF7+ Tn1, pval=0.003 **, 0.019 *, 0.0008 ***, 1.102e-14 ****
+    # ZNF683+ Tm, pval=4.633e-08(SPOTlight), 5.854e-09 ****
+
+
+    df = pd.DataFrame(df.groupby(subtype).mean())
+    fig, axs = plt.subplots(1, 1, figsize=(7, 3.5), constrained_layout=True)
+    width = 0.5
+    x = df1.index
+    bottom_y = np.array([0] * len(df1))
+    for cell,color in zip(df1.columns, mcolors.XKCD_COLORS):
+        y = df1.loc[:, cell]
+        axs.bar(x, y, width, bottom=bottom_y, label=df1.columns, color=color)
+        bottom_y = y + bottom_y
+    axs.set_title('The cellular composition of each region')
+    axs.set_xticks(x, x)
+    fig.show()
+
+
+
+
 def Show_intersection_genes(sptFile, gene, folder, sptFile1=None, h5data='matrix', cell_type=""):
     adata_sp = Load_spt_to_AnnData(sptFile, h5data)
     fig, axs = plt.subplots(1, 1, figsize=(3, 3), constrained_layout=True)

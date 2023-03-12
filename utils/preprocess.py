@@ -26,11 +26,11 @@ def Preprocess_info(adata):
     sb.distplot(adata.obs['total_counts'][adata.obs['total_counts'] < 10000], kde=False, bins=40, ax=axs[1])
 
 # 基因过滤
-def Filter_genes(adata, min_max_counts=(0, 350000), mt_frac=0.1, min_genes_cells=(3000, 0)):
+def Filter_genes(adata, min_max_counts=(10, 350000), mt_frac=0.1, min_genes_cells=(3000, 10)):
     mincounts, maxcounts = min_max_counts[0], min_max_counts[1]
     mingenes, mincells = min_genes_cells[0], min_genes_cells[1]
-    # sc.pp.filter_cells(adata, min_counts=mincounts)
-    # print(f'Number of cells after min count filter: {adata.n_obs}')
+    sc.pp.filter_cells(adata, min_counts=mincounts)
+    print(f'Number of cells after min count filter: {adata.n_obs}')
     # sc.pp.filter_cells(adata, max_counts=maxcounts)
     # print(f'Number of cells after max count filter: {adata.n_obs}')
     # adata = adata[adata.obs['mt_frac'] < mt_frac]

@@ -8,21 +8,17 @@ sptFile <- params$sptFile
 python_path <- params$pythonPath
 temp_dir <- params$tempdir
 
+params <- h5read(sptFile, "configs")
+
 sce <- Load_sptsc_to_SCE(sptFile, h5data = "scRNA_seq")
 sce <- Analysis_scRNA_seq(sce)
-sce0 <- sce[sce@metadata$marker_genes$gene, ]
+sce0 <- sce[sce@metadata$HVGs, ]
 Sig <- aggregate(data.frame(t(as.matrix(sce0@assays@data$logcounts))), by=list(sce0$free_annotation), FUN=mean)
 rownames(Sig) <- Sig[[1]]
 Sig <- Sig[, -1]
 Sig0 <- t(as.matrix(Sig))
 for(decont in params$Decontamination){
-  h5data <- "matrix"
-  if(decont == "SpotClean"){
-    h5data <- "SpotClean_mat"
-  }
-  if(decont == "SPCS"){
-    h5data <- "SPCS_mat"
-  }
+  h5data <- Create_spt_h5data(decont)
 
   gobj <- Load_spt_to_Giotto(sptFile, h5data, python_path, temp_dir)
   gobj <- Preprocess_Giotto(gobj)

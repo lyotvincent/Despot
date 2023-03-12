@@ -4,8 +4,12 @@ from utils.common import *
 class sptInfo:
     def __init__(self, sptFile):
         self.sptFile = sptFile
+        # add names
+        self.name = None
         with h5.File(sptFile, 'r') as f:
             mat = list(f.keys())
+            if 'name' in mat:
+                self.name = bytes2str(f['name'][:])[0]
 
         # add origin matrix
         self.spmatrixs = {}
@@ -44,6 +48,20 @@ class sptInfo:
                     self.map_chains = pd.concat([self.map_chains, dat], axis=1)
             self.map_chains.index = self.map_chains['cell-type']
 
+        # add configs
+        self.configs = {}
+        with h5.File(self.sptFile, 'r') as f:
+            if "configs" in f:
+                cfg = f["configs"]
+                for k in cfg.keys():
+                    item = np.array(cfg[k], dtype='str')
+                    if item.shape == ():    # for only one item
+                        item = item.item()
+                    else :     # for multi items
+                        item = list(item)
+                    self.configs[k] = item
+
+
     def get_spmatrix(self):
         return list(self.spmatrixs.keys())
 
@@ -76,18 +94,94 @@ class sptInfo:
             return self.map_chains
 
 
+# save configs to sptFile
+def Save_spt_from_configs(sptFile, cfg_file="params.json", items: dict = None, change_cfg=False):
+    def get_item(items,k):
+        item = items[k]
+        if type(item) == str:
+            if item == "":
+                item = "empty"
+            item = bytes(item, encoding='utf-8')
+        elif type(item) == list and len(item) > 0:
+            if type(item[0]) == str:
+                item = str2bytes(item)
+        return item
+
+    with h5.File(sptFile, 'a') as f:
+        if "configs" not in f:
+            # save configs from params.json if no configs or needs to change configs
+            f.create_group("configs")
+            cfg = Load_json_configs(cfg_file)
+            for k in cfg.keys():
+                item = get_item(cfg, k)
+                f.create_dataset(name="configs/" + k, data=item)
+        else:
+            # if item is none, means no changes in configs
+            if items is None:
+                if change_cfg:
+                    items = Load_json_configs(cfg_file)
+                else:
+                    return 0
+            for k in items.keys():
+                if k in f["configs"]:
+                    del f["configs/" + k]
+                item = get_item(items, k)
+                print(item)
+                f.create_dataset(name="configs/" + k, data=item)
+    return 0
+
+
+def Spt_check_corrections(sptFile):
+    def check_matrix(h5obj):
+        basic_item = ['barcodes', 'features', 'data', 'indices', 'indptr', 'shape']
+        for item in basic_item:
+            if item not in h5obj:
+                print("check matrix corrections failed in ", h5obj)
+                return False
+        return True
+
+    def check_images(h5obj):
+        basic_item = ['coordinates/row', 'coordinates/col']
+        for item in basic_item:
+            if item not in h5obj:
+                print("check matrix corrections failed in ", h5obj)
+                return False
+        return True
+
+    true_flag = True
+    # check configs
+    Save_spt_from_configs(sptFile)
+
+    with h5.File(sptFile, 'r') as f:
+        if 'sptimages' not in f:
+            print("check matrix corrections failed in sptimages.")
+            return False
+        else:
+            if not check_images(f['sptimages']):
+                return False
+
+        if 'matrix' not in f:
+            print("check matrix corrections failed in matrix.")
+            return False
+        else:
+            if not check_matrix(f['matrix']):
+                return False
+    return true_flag
+
 # the params are saved in a .json config
 def Load_json_configs(path: str, encoding: str = 'utf-8'):
     with open(path, 'r', encoding=encoding) as fp:
         json_data = json.load(fp)
     return json_data
 
+
 # convert bytes to str in array
 def bytes2str(arr):
     arr = np.array(list(map(lambda x: str(x, encoding='utf8'), arr)))
     return arr
 
-# conver str to bytes in array
+
+# convert str to bytes in array
 def str2bytes(arr):
     arr = np.array(list(map(lambda x: bytes(x, encoding='utf-8'), arr)))
     return arr
@@ -95,7 +189,7 @@ def str2bytes(arr):
 
 def bytes2tuple(arr):
     arr = np.array(list(map(lambda x: tuple(x), arr)), dtype=object)
-    arr = np.array(list(map(lambda x: (0, ) if len(x)==0 else x, arr)))
+    arr = np.array(list(map(lambda x: (0, ) if len(x) == 0 else x, arr)))
     return arr
 
 
@@ -105,126 +199,129 @@ def tuple2bytes(arr):
 
 
 def Load_spt_to_AnnData(sptFile: str,
-                        count: str = "matrix",
+                        h5data: str = "matrix",
                         hires: bool = False,
                         dtype='float32'):
     # use h5py to load origin info
-    h5_obj = h5.File(sptFile, 'r')
-    h5mat = h5_obj['matrix']
-    h5img = h5_obj["sptimages"]
-    features = h5mat['features']
-    coord = h5img["coordinates"]
-    sf = h5img["scalefactors"]
+    with h5.File(sptFile, 'r') as h5_obj:
+        h5mat = h5_obj['matrix']
+        h5img = h5_obj["sptimages"]
+        coord = h5img["coordinates"]
+        sf = h5img["scalefactors"]
 
-    # select the active data, default 'matrix'
-    h5dat = h5_obj[count]
+        # select the active data, default 'matrix'
+        datas = h5data.split('/')
+        data0 = datas[0]
+        h5dat = h5_obj[data0]
 
-    # create X in AnnData, including data, indices, indptr, shape
-    data = h5dat['data']
-    indices = h5dat['indices']
-    indptr = h5dat['indptr']
-    shape = h5dat['shape']
-    X = csc_matrix((data, indices, indptr), shape=shape, dtype=dtype).T
+        # create X in AnnData, including data, indices, indptr, shape
+        data = h5dat['data']
+        indices = h5dat['indices']
+        indptr = h5dat['indptr']
+        shape = h5dat['shape']
+        X = csc_matrix((data, indices, indptr), shape=shape, dtype=dtype).T
 
-    # create obs and obsm
-    obs = pd.DataFrame({'in_tissue': np.array(coord["tissue"][:], dtype='int32'),
-                        'array_row': np.array(coord["row"][:], dtype='int32'),
-                        'array_col': np.array(coord["col"][:], dtype='int32'),
-                        'image_row': np.array(coord["imagerow"][:], dtype='int32'),
-                        'image_col': np.array(coord["imagecol"][:], dtype='int32')},
-                       index=bytes2str(coord["index"][:]))
-    obs = obs.sort_index()
-    obs_names = bytes2str(h5dat['barcodes'][:])
-    obs = obs.loc[obs_names, :]
+        # create obs and obsm
+        obs = pd.DataFrame({'in_tissue': np.array(coord["tissue"][:], dtype='int32'),
+                            'array_row': np.array(coord["row"][:], dtype='int32'),
+                            'array_col': np.array(coord["col"][:], dtype='int32'),
+                            'image_row': np.array(coord["imagerow"][:], dtype='int32'),
+                            'image_col': np.array(coord["imagecol"][:], dtype='int32')},
+                           index=bytes2str(coord["index"][:]))
+        obs = obs.sort_index()
+        obs_names = bytes2str(h5dat['barcodes'][:])
+        obs = obs.loc[obs_names, :]
 
-    # load idents
-    idents = h5dat['idents']
-    for ident in idents.keys():
-        # change idents' datatype if they are numeric
-        idf = np.array(idents[ident][:], dtype='str')
-        if str.isnumeric(idf[0]):
-            idf = np.array(idents[ident][:], dtype=int)
-        # change idents to category
-        idf = pd.Series(idf, index=bytes2str(h5mat['barcodes'][:]), dtype='category')
-        obs[ident] = idf.loc[obs_names]
-    obsm = np.array([obs['image_col'], obs['image_row']])
-    obsm = obsm.T
+        # load idents
+        idents = h5dat['idents']
+        for ident in idents.keys():
+            # change idents' datatype if they are numeric
+            idf = np.array(idents[ident][:], dtype='str')
+            if str.isnumeric(idf[0]):
+                idf = np.array(idents[ident][:], dtype=int)
+            # change idents to category
+            idf = pd.Series(idf, index=bytes2str(h5mat['barcodes'][:]), dtype='category')
+            obs[ident] = idf.loc[obs_names]
+        obsm = np.array([obs['image_col'], obs['image_row']])
+        obsm = obsm.T
 
-    # create var
-    if count != "matrix":  # which means Decont data exists
-        h5fea = bytes2str(h5dat['features']['name'][:])
-        var = pd.DataFrame({'gene_name': h5fea}, index=h5fea)
-    else:
-        # var = pd.DataFrame({'gene_ids': np.array(features["id"][:], dtype='str'),
-        #                     'feature_types': np.array(features['feature_type'][:], dtype='str'),
-        #                     'genome': np.array(features['genome'][:], dtype='str'),
-        #                     'gene_name': np.array(features['name'][:], dtype='str')})
-        # var.index = var['gene_ids']
-        h5fea = bytes2str(h5dat['features']['name'][:])
-        var = pd.DataFrame({'gene_name': h5fea}, index=h5fea)
-    name = str(h5_obj["name"][0], encoding='utf8')
+        # create var
+        if data0 != "matrix":  # which means Decont data exists
+            h5fea = bytes2str(h5dat['features']['name'][:])
+            var = pd.DataFrame({'gene_name': h5fea}, index=h5fea)
+        else:
+            # var = pd.DataFrame({'gene_ids': np.array(features["id"][:], dtype='str'),
+            #                     'feature_types': np.array(features['feature_type'][:], dtype='str'),
+            #                     'genome': np.array(features['genome'][:], dtype='str'),
+            #                     'gene_name': np.array(features['name'][:], dtype='str')})
+            # var.index = var['gene_ids']
+            h5fea = bytes2str(h5dat['features']['name'][:])
+            var = pd.DataFrame({'gene_name': h5fea}, index=h5fea)
+        name = str(h5_obj["name"][0], encoding='utf8')
 
-    adata = ad.AnnData(X, obs=obs, var=var)
-    adata.obs_names = obs_names
-    adata.obsm['spatial'] = obsm
-    print("Loading Gene expression finished.")
-    # create Images
-    adata.uns['spatial'] = {name: {
-        'images': {'lowres': h5img['lowres'][:].T},
-        'scalefactors': {'spot_diameter_fullres': sf['spot'][0],
-                         'tissue_hires_scalef': sf['hires'][0],
-                         'fiducial_diameter_fullres': sf['fiducial'][0],
-                         'tissue_lowres_scalef': sf['lowres'][0], },
-        'metadata': {}
-    }}
-    if hires:
-        adata.uns['spatial'][name]['images']['hires'] = h5img['hires'][:].T
+        adata = ad.AnnData(X, obs=obs, var=var)
+        adata.obs_names = obs_names
+        adata.obsm['spatial'] = obsm
+        print("Loading Gene expression finished.")
+        # create Images
+        adata.uns['spatial'] = {name: {
+            'images': {'lowres': h5img['lowres'][:].T},
+            'scalefactors': {'spot_diameter_fullres': sf['spot'][0],
+                             'tissue_hires_scalef': sf['hires'][0],
+                             'fiducial_diameter_fullres': sf['fiducial'][0],
+                             'tissue_lowres_scalef': sf['lowres'][0], },
+            'metadata': {}
+        }}
+        if hires:
+            adata.uns['spatial'][name]['images']['hires'] = h5img['hires'][:].T
 
-    print("Loading spatial images finished.")
-    # create svgs
-    if 'is_HVG' not in h5dat['features']:
-        h5_obj.create_group(count + 'features/is_HVG')
-    else:
-        h5svg = h5dat['features']['is_HVG']
-        HVGS = {}
-        if len(h5svg) > 0:
-            for svg in h5svg.keys():
-                HVG = pd.DataFrame()
-                if svg == "BayesSpace" or svg == "leiden":
-                    pass
-                else:
-                    for elem in h5svg[svg].keys():
-                        HVG = pd.concat([HVG, pd.Series(h5svg[svg][elem], name=elem)], axis=1)
-                HVGS[svg] = HVG
-        adata.uns["HVGs"] = HVGS
+        print("Loading spatial images finished.")
+        # create svgs
+        if 'is_HVG' in h5dat['features']:
+            h5svg = h5dat['features']['is_HVG']
+            HVGS = {}
+            if len(h5svg) > 0:
+                for svg in h5svg.keys():
+                    HVG = pd.DataFrame()
+                    if svg == "BayesSpace" or svg == "leiden":
+                        pass
+                    else:
+                        for elem in h5svg[svg].keys():
+                            HVG = pd.concat([HVG, pd.Series(h5svg[svg][elem], name=elem)], axis=1)
+                    HVGS[svg] = HVG
+            adata.uns["HVGs"] = HVGS
 
-    # create deconv results
-    h5dcv = h5dat['deconv']
-    if len(h5dcv.keys()) > 0:
-        for dcv in h5dcv.keys():
-            # print(dcv)
-            shape = h5dcv[dcv]['shape']
-            weights = np.array(h5dcv[dcv]['weights']).reshape(shape[1], shape[0]).T
-            barcodes = bytes2str(h5dcv[dcv]['barcodes'][:])
-            cell_type = bytes2str(h5dcv[dcv]['cell_type'][:])
-            w = pd.DataFrame(weights, index=barcodes, columns=cell_type)
-            # print(w)
-            adata.obsm[dcv] = w
-    print("Loading deconvolution data finished.")
+        # whether you need to do subset
+        if len(datas) > 1:
+            subarcodes = bytes2str(h5_obj[h5data + '/barcodes'][:])
+            adata = adata[subarcodes]
 
-    if 'abundance' in h5dat.keys():
-        h5abd = h5dat['abundance']
-        if len(h5abd.keys()) > 0:
-            for abd in h5abd.keys():
+        # create deconv results
+        h5dcv = h5_obj[h5data + '/deconv']
+        if len(h5dcv.keys()) > 0:
+            for dcv in h5dcv.keys():
                 # print(dcv)
-                shape = h5abd[abd]['shape']
-                weights = np.array(h5abd[abd]['weights']).reshape(shape[1], shape[0]).T
-                barcodes = bytes2str(h5abd[abd]['barcodes'][:])
-                cell_type = bytes2str(h5abd[abd]['cell_type'][:])
+                shape = h5dcv[dcv]['shape']
+                weights = np.array(h5dcv[dcv]['weights']).reshape(shape[1], shape[0]).T
+                barcodes = bytes2str(h5dcv[dcv]['barcodes'][:])
+                cell_type = bytes2str(h5dcv[dcv]['cell_type'][:])
                 w = pd.DataFrame(weights, index=barcodes, columns=cell_type)
                 # print(w)
-                adata.obsm[abd] = w
-    h5_obj.close()
+                adata.obsm[dcv] = w
+        print("Loading deconvolution data finished.")
+
+        if 'abundance' in h5dat.keys():
+            h5abd = h5dat['abundance']
+            if len(h5abd.keys()) > 0:
+                for abd in h5abd.keys():
+                    # print(dcv)
+                    shape = h5abd[abd]['shape']
+                    weights = np.array(h5abd[abd]['weights']).reshape(shape[1], shape[0]).T
+                    barcodes = bytes2str(h5abd[abd]['barcodes'][:])
+                    cell_type = bytes2str(h5abd[abd]['cell_type'][:])
+                    w = pd.DataFrame(weights, index=barcodes, columns=cell_type)
+                    # print(w)
+                    adata.obsm[abd] = w
     return adata
 
 
@@ -343,7 +440,7 @@ def Save_tsv_from_scData(out_dir, scdata):
     mta.to_csv(opth_mta, sep='\t', header=True, index=True, index_label='cell')
 
 
-def Save_tsv_from_spData(out_dir, spdata, filename='spt_data.tsv'):
+def Save_tsv_from_spData(out_dir, spdata, filename='spt_data.tsv', transport=False, index_label='cell'):
     if not osp.exists(out_dir):
         os.mkdir(out_dir)
     mat = spdata.X.todense()
@@ -351,13 +448,27 @@ def Save_tsv_from_spData(out_dir, spdata, filename='spt_data.tsv'):
     spdata.var_names_make_unique()
     cnt = pd.DataFrame(mat, index=spdata.obs_names,
                        columns=spdata.var_names)
+    if transport:
+        cnt = cnt.T
     opth_cnt = osp.join(out_dir, filename)
-    cnt.to_csv(opth_cnt, sep='\t', header=True, index=True, index_label='cell')
+    cnt.to_csv(opth_cnt, sep='\t', header=True, index=True, index_label=index_label)
+
+def Save_meta_from_spData(out_dir, spdata, sample_name, filename='spt_meta.tsv'):
+    if not osp.exists(out_dir):
+        os.mkdir(out_dir)
+    meta = pd.DataFrame(spdata.obs[['array_row', 'array_col']])
+    meta.columns = ['X', 'Y']
+    diameter = spdata.uns['spatial'][sample_name]['scalefactors']['spot_diameter_fullres']
+    diameters = pd.DataFrame(np.repeat(diameter/2, len(meta)), columns=['Spot_radius'], index=meta.index)
+    opth_meta = osp.join(out_dir, filename)
+    meta = pd.concat([meta,diameters], axis=1)
+    meta.to_csv(opth_meta, header=True, index=True, index_label="Barcodes")
+    return
 
 
-def Load_spt_to_stData(sptFile, count="matrix", hires=False, dataPath=None):
+def Load_spt_to_stData(sptFile, count="matrix", hires=False, dtype=None):
     import stlearn as st
-    adata = Load_spt_to_AnnData(sptFile, count, hires, dataPath)
+    adata = Load_spt_to_AnnData(sptFile, count, hires, dtype)
     adata = st.convert_scanpy(adata)
     return adata
 
@@ -410,6 +521,17 @@ def Save_spt_from_SpaGCN_clu(sptFile, adata, h5data='matrix'):
             f.create_dataset(h5data + '/idents/SpaGCN', data=ident, dtype='int32')
     print("Clustering with `SpaGCN` finished, idents saved in /" + h5data + '/idents/SpaGCN')
 
+
+def Save_spt_from_SEDR(sptFile, adata, h5data='matrix'):
+    with h5.File(sptFile, 'a') as f:
+        # save idents
+        ident = list(np.array(adata.obs['clusters'], dtype='int32'))
+        if h5data + '/idents/SEDR' not in f:
+            f.create_dataset(h5data + '/idents/SEDR', data=ident, dtype='int32')
+        else:
+            del f[h5data + '/idents/SEDR']
+            f.create_dataset(h5data + '/idents/SEDR', data=ident, dtype='int32')
+    print("Clustering with `SEDR` finished, idents saved in /" + h5data + '/idents/SEDR')
 
 def Save_spt_from_stlearn(sptFile, stdata, h5data='matrix'):
     with h5.File(sptFile, 'a') as f:
@@ -528,6 +650,52 @@ def Save_spt_from_Cell2Location(sptFile, adata, h5data='matrix'):
         f.create_dataset(h5data + '/deconv/Cell2Location/barcodes', data=barcodes)
         f.create_dataset(h5data + '/deconv/Cell2Location/shape', data=shape)
     print("Deconvolution with `Cell2Location` finished, Weight saved in /" + h5data + '/deconv/Cell2Location')
+
+
+def Save_spt_from_txt(sptFile, txt_file, name, transport=False):
+    count = pd.read_csv(txt_file, sep='\t', index_col=0)
+    barcodes = list(str2bytes(count.index))
+    features = list(str2bytes(count.columns))
+    if transport:
+        count = csr_matrix(count).T
+    else:
+        count = csr_matrix(count)
+    with h5.File(sptFile, 'a') as f:
+        if name not in f:
+            f.create_group(name)
+        else:
+            if name + '/idents/annotation' in f:
+                del f[name + '/idents/annotation']
+            if name + '/idents' in f:
+                del f[name + '/idents']
+            if name + '/features/name' in f:
+                del f[name + '/features/name']
+            if name + '/features' in f:
+                del f[name + '/features']
+            if name + '/barcodes' in f:
+                del f[name + '/barcodes']
+            if name + '/shape' in f:
+                del f[name + '/shape']
+            if name + '/indptr' in f:
+                del f[name + '/indptr']
+            if name + '/indices' in f:
+                del f[name + '/indices']
+            if name + '/data' in f:
+                del f[name + '/data']
+            if name in f:
+                del f[name]
+            f.create_group(name)
+        f.create_dataset(name + '/data', data=count.data, dtype='float32')
+        f.create_dataset(name + '/indices', data=count.indices, dtype='int')
+        f.create_dataset(name + '/indptr', data=count.indptr, dtype='int')
+        shape = count.shape
+        f.create_dataset(name + '/shape', data=shape, dtype='int')
+        f.create_dataset(name + '/barcodes', data=barcodes)
+        f.create_group(name + '/features')
+        f.create_dataset(name + '/features/name', data=features)
+        f.create_group(name + '/idents')
+        f.create_group(name + '/deconv')
+    print("Save txt finished, matrix data saved in " + name)
 
 
 def Save_spt_from_ref(sptFile, reference: pd.DataFrame, label: pd.DataFrame, name='sc-ref'):

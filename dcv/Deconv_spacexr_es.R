@@ -16,9 +16,9 @@ for(decont in params$Decontamination){
   h5data <- Create_spt_h5data(decont)
 
   # read References
-  sce <- Load_sptsc_to_SCE(sptFile, "sc-ref")
+  sce <- Load_sptsc_to_SCE(sptFile, "sc-ref-es")
   sr <- Load_spt_to_SpatialRNA(sptFile, h5data)
   ref <- GenerateRef_spacexr(sce)
   rctd <- Deconvolution_spacexr(sr, ref)
-  Save_spt_from_spacexr(sptFile, h5data, rctd)
+  Save_spt_from_spacexr(sptFile, h5data, rctd, pp_mtd = "es")
 }

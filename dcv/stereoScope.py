@@ -304,11 +304,11 @@ def StereoScope_cmd(sc_cnt, sc_labels, st_cnt,
               " -o " + out + \
               " -n " + str(num) + \
               " -scb " + str(scb) + \
-              " -stb " + str(stb) # + \
-              # " --gpu "
+              " -stb " + str(stb) + \
+              " --gpu "
     return cmd
 
-def StereoScope_run(stereo_dir, out_dir='h5ads/res',
+def StereoScope_run(stereo_dir, pythonPath, out_dir='h5ads/res',
                     scdata_epoch=5000, stdata_epoch=5000,
                     scdata_batch=100, stdata_batch=100,
                     num=3000, gpu=True):
@@ -320,5 +320,5 @@ def StereoScope_run(stereo_dir, out_dir='h5ads/res',
                           sce = scdata_epoch, ste = stdata_epoch,
                           scb = scdata_batch, stb = stdata_batch,
                           num=num, gpu=gpu)
-    os.system("python stereoscope/setup.py install --user")
+    os.system("{0} stereoscope/setup.py install --user".format(pythonPath))
     os.system(cmd)

@@ -252,6 +252,20 @@ Create_spt_array1d <- function(sptFile, arr, sptloc, mode){
   rhdf5::h5write(arr, sptFile, sptloc)
 }
 
+Create_spt_h5data <- function(decont){
+  h5data <- "matrix"
+  if(decont == "SpotClean"){
+    h5data <- "SpotClean_mat"
+  }
+  if(decont == "SPCS"){
+    h5data <- "SPCS_mat"
+  }
+  if(decont == "SPROD"){
+    h5data <- "SPROD_mat"
+  }
+  return(h5data)
+}
+
 # Load spt to Seurat
 Load_spt_to_Seurat <- function(sptFile, imgdir, h5data='matrix'){
   library(Seurat)
@@ -666,7 +680,7 @@ Load_spt_to_SPARK <- function(sptFile, h5data = 'matrix'){
 }
 
 # spt to SpatialRNA object
-Load_spt_to_SpatialRNA <- function(sptFile){
+Load_spt_to_SpatialRNA <- function(sptFile, h5data = 'matrix'){
   library(spacexr)
   library(SeuratObject)
   # find if need to do subset
@@ -703,7 +717,7 @@ Load_spt_to_SpatialRNA <- function(sptFile){
   sr <- SpatialRNA(coords = spatial_locs,
                    counts = obj@assays$RNA@counts,
                    use_fake_coords = FALSE,
-                   require_int = TRUE)
+                   require_int = FALSE)
   return(sr)
 }
 
@@ -724,3 +738,6 @@ Save_spt_to_tsv <- function(sptFile, outdir){
   spmat <- as.matrix(counts)
   write.table(spmat, file = paste0(outdir, '/spcnt.tsv'), sep = '\t', quote = F)
 }
+
+
+# some softwares provide .txt outputs, we save them to sptFile
