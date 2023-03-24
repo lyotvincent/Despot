@@ -189,7 +189,7 @@ def str2bytes(arr):
 
 def bytes2tuple(arr):
     arr = np.array(list(map(lambda x: tuple(x), arr)), dtype=object)
-    arr = np.array(list(map(lambda x: (0, ) if len(x) == 0 else x, arr)))
+    arr = np.array(list(map(lambda x: (0, ) if len(x) == 0 else x, arr)), dtype=object)
     return arr
 
 
@@ -201,6 +201,9 @@ def tuple2bytes(arr):
 def Load_spt_to_AnnData(sptFile: str,
                         h5data: str = "matrix",
                         hires: bool = False,
+                        loadDeconv: bool = False,
+                        loadImg: bool = True,
+                        platform: str = '10X_Visium',
                         dtype='float32'):
     # use h5py to load origin info
     with h5.File(sptFile, 'r') as h5_obj:
@@ -222,12 +225,20 @@ def Load_spt_to_AnnData(sptFile: str,
         X = csc_matrix((data, indices, indptr), shape=shape, dtype=dtype).T
 
         # create obs and obsm
-        obs = pd.DataFrame({'in_tissue': np.array(coord["tissue"][:], dtype='int32'),
-                            'array_row': np.array(coord["row"][:], dtype='int32'),
-                            'array_col': np.array(coord["col"][:], dtype='int32'),
-                            'image_row': np.array(coord["imagerow"][:], dtype='int32'),
-                            'image_col': np.array(coord["imagecol"][:], dtype='int32')},
-                           index=bytes2str(coord["index"][:]))
+        if platform == "ST":    # rotate anticlockwise 90 degrees for ST
+            obs = pd.DataFrame({'in_tissue': np.array(coord["tissue"][:], dtype='int32'),
+                                'array_row': np.array(coord["row"][:], dtype='int32'),
+                                'array_col': np.array(coord["col"][:], dtype='int32'),
+                                'image_row': np.array(-coord["imagecol"][:], dtype='int32'),
+                                'image_col': np.array(coord["imagerow"][:], dtype='int32')},
+                               index=bytes2str(coord["index"][:]))
+        else:
+            obs = pd.DataFrame({'in_tissue': np.array(coord["tissue"][:], dtype='int32'),
+                                'array_row': np.array(coord["row"][:], dtype='int32'),
+                                'array_col': np.array(coord["col"][:], dtype='int32'),
+                                'image_row': np.array(coord["imagerow"][:], dtype='int32'),
+                                'image_col': np.array(coord["imagecol"][:], dtype='int32')},
+                               index=bytes2str(coord["index"][:]))
         obs = obs.sort_index()
         obs_names = bytes2str(h5dat['barcodes'][:])
         obs = obs.loc[obs_names, :]
@@ -264,18 +275,19 @@ def Load_spt_to_AnnData(sptFile: str,
         adata.obsm['spatial'] = obsm
         print("Loading Gene expression finished.")
         # create Images
-        adata.uns['spatial'] = {name: {
-            'images': {'lowres': h5img['lowres'][:].T},
-            'scalefactors': {'spot_diameter_fullres': sf['spot'][0],
-                             'tissue_hires_scalef': sf['hires'][0],
-                             'fiducial_diameter_fullres': sf['fiducial'][0],
-                             'tissue_lowres_scalef': sf['lowres'][0], },
-            'metadata': {}
-        }}
-        if hires:
-            adata.uns['spatial'][name]['images']['hires'] = h5img['hires'][:].T
+        if loadImg and 'lowres' in h5img:
+            adata.uns['spatial'] = {name: {
+                'images': {'lowres': h5img['lowres'][:].T},
+                'scalefactors': {'spot_diameter_fullres': sf['spot'][0],
+                                 'tissue_hires_scalef': sf['hires'][0],
+                                 'fiducial_diameter_fullres': sf['fiducial'][0],
+                                 'tissue_lowres_scalef': sf['lowres'][0], },
+                'metadata': {}
+            }}
+            if hires and 'hires' in h5img:
+                adata.uns['spatial'][name]['images']['hires'] = h5img['hires'][:].T
 
-        print("Loading spatial images finished.")
+            print("Loading spatial images finished.")
         # create svgs
         if 'is_HVG' in h5dat['features']:
             h5svg = h5dat['features']['is_HVG']
@@ -297,18 +309,19 @@ def Load_spt_to_AnnData(sptFile: str,
             adata = adata[subarcodes]
 
         # create deconv results
-        h5dcv = h5_obj[h5data + '/deconv']
-        if len(h5dcv.keys()) > 0:
-            for dcv in h5dcv.keys():
-                # print(dcv)
-                shape = h5dcv[dcv]['shape']
-                weights = np.array(h5dcv[dcv]['weights']).reshape(shape[1], shape[0]).T
-                barcodes = bytes2str(h5dcv[dcv]['barcodes'][:])
-                cell_type = bytes2str(h5dcv[dcv]['cell_type'][:])
-                w = pd.DataFrame(weights, index=barcodes, columns=cell_type)
-                # print(w)
-                adata.obsm[dcv] = w
-        print("Loading deconvolution data finished.")
+        if loadDeconv:
+            h5dcv = h5_obj[h5data + '/deconv']
+            if len(h5dcv.keys()) > 0:
+                for dcv in h5dcv.keys():
+                    # print(dcv)
+                    shape = h5dcv[dcv]['shape']
+                    weights = np.array(h5dcv[dcv]['weights']).reshape(shape[1], shape[0]).T
+                    barcodes = bytes2str(h5dcv[dcv]['barcodes'][:])
+                    cell_type = bytes2str(h5dcv[dcv]['cell_type'][:])
+                    w = pd.DataFrame(weights, index=barcodes, columns=cell_type)
+                    # print(w)
+                    adata.obsm[dcv] = w
+            print("Loading deconvolution data finished.")
 
         if 'abundance' in h5dat.keys():
             h5abd = h5dat['abundance']
@@ -322,6 +335,10 @@ def Load_spt_to_AnnData(sptFile: str,
                     w = pd.DataFrame(weights, index=barcodes, columns=cell_type)
                     # print(w)
                     adata.obsm[abd] = w
+
+    # making var and obs unique
+    adata.var_names_make_unique()
+    adata.obs_names_make_unique()
     return adata
 
 
@@ -350,6 +367,7 @@ def Load_spt_sc_to_AnnData(sptFile, h5data='scRNA_seq'):
     if 'HVGs' in scRNA_seq['features']:
         hvg = bytes2str(scRNA_seq['features']['HVGs'][:])
         adata.uns['HVGs'] = np.array(hvg, dtype='str')
+    adata.var_names_make_unique()
     return adata
 
 
@@ -402,7 +420,6 @@ def Load_spt_to_Benchmark(sptFile, h5data, mode: str = "cluster"):
 
 # Save subset under existing h5datas
 def Save_spt_from_Subset(sptFile:str, h5data:str, subset_name:str, refer_idx=None, force=False):
-    sptinfo = sptInfo(sptFile)
     # if it's required to save a reference to existing h5data, using ref_idx to select the subset.
     if refer_idx is not None:
         if type(refer_idx[0] == str):
@@ -453,12 +470,16 @@ def Save_tsv_from_spData(out_dir, spdata, filename='spt_data.tsv', transport=Fal
     opth_cnt = osp.join(out_dir, filename)
     cnt.to_csv(opth_cnt, sep='\t', header=True, index=True, index_label=index_label)
 
+
 def Save_meta_from_spData(out_dir, spdata, sample_name, filename='spt_meta.tsv'):
     if not osp.exists(out_dir):
         os.mkdir(out_dir)
     meta = pd.DataFrame(spdata.obs[['array_row', 'array_col']])
     meta.columns = ['X', 'Y']
-    diameter = spdata.uns['spatial'][sample_name]['scalefactors']['spot_diameter_fullres']
+    if 'spatial' in spdata.uns:
+        diameter = spdata.uns['spatial'][sample_name]['scalefactors']['spot_diameter_fullres']
+    else:
+        diameter = 100
     diameters = pd.DataFrame(np.repeat(diameter/2, len(meta)), columns=['Spot_radius'], index=meta.index)
     opth_meta = osp.join(out_dir, filename)
     meta = pd.concat([meta,diameters], axis=1)
@@ -469,6 +490,8 @@ def Save_meta_from_spData(out_dir, spdata, sample_name, filename='spt_meta.tsv')
 def Load_spt_to_stData(sptFile, count="matrix", hires=False, dtype=None):
     import stlearn as st
     adata = Load_spt_to_AnnData(sptFile, count, hires, dtype)
+    adata.var_names_make_unique()
+    adata.obs_names_make_unique()
     adata = st.convert_scanpy(adata)
     return adata
 
@@ -532,6 +555,7 @@ def Save_spt_from_SEDR(sptFile, adata, h5data='matrix'):
             del f[h5data + '/idents/SEDR']
             f.create_dataset(h5data + '/idents/SEDR', data=ident, dtype='int32')
     print("Clustering with `SEDR` finished, idents saved in /" + h5data + '/idents/SEDR')
+
 
 def Save_spt_from_stlearn(sptFile, stdata, h5data='matrix'):
     with h5.File(sptFile, 'a') as f:
@@ -756,8 +780,8 @@ def Save_spt_from_corrcoef(sptFile, coef: pd.DataFrame, dcv_mtd, h5data='matrix'
             del f[h5data + '/coef/' + dcv_mtd]
             f.create_group(h5data + '/coef/' + dcv_mtd)
         f.create_dataset(h5data + '/coef/' + dcv_mtd + '/weights', data=weights)
-        f.create_dataset(h5data + '/deconv/Cell2Location/cell_type', data=cell_type)
-        f.create_dataset(h5data + '/deconv/Cell2Location/shape', data=shape)
+        f.create_dataset(h5data + '/coef/' + dcv_mtd + '/cell_type', data=cell_type)
+        f.create_dataset(h5data + '/coef/' + dcv_mtd + '/shape', data=shape)
     print("pearson's R with " + dcv_mtd + " finished, index saved in /" + h5data + '/coef/' + dcv_mtd)
 
 
@@ -769,17 +793,20 @@ def Save_spt_from_BestDict(sptFile, Best_dict: dict):
         Best_item = Best_dict[ct]
         mtds = Best_item[2].split('+')
         dct_mtd, dcv_mtd, clu_mtd = mtds[0], mtds[1], mtds[2]
-        df_item = pd.DataFrame(data=[ct, Best_item[0], Best_item[1], dct_mtd, dcv_mtd, clu_mtd], index=col, columns=[ct]).T
+        df_item = pd.DataFrame(data=[ct, Best_item[0], Best_item[1], dct_mtd, dcv_mtd, clu_mtd],
+                               index=col, columns=[ct]).T
         best_df = pd.concat([best_df, df_item])
     with h5.File(sptFile, 'a') as f:
         if "/map_chains" not in f:
             f.create_group("/map_chains")
+        else:
+            for key in f['map_chains']:
+                del f['map_chains/' + key]
         for cols in best_df.columns:
             dat = list(best_df[cols])
             if type(dat[0]) == str:
-                f.create_dataset("map_chains/"+cols, data=str2bytes(dat))
+                f.create_dataset("map_chains/" + cols, data=str2bytes(dat))
             elif type(dat[0]) == tuple:
                 f.create_dataset("map_chains/" + cols, data=tuple2bytes(dat))
             else:
-                f.create_dataset("map_chains/"+cols, data=dat)
-
+                f.create_dataset("map_chains/" + cols, data=dat)

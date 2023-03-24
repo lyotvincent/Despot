@@ -14,6 +14,8 @@ run_name = f'{results_folder}/cell2location_map'
 
 def Cell2Location_pp_sc(sptFile, cell_count_cutoff=5, cell_percentage_cutoff2=0.03, nonz_mean_cutoff=1.12):
     adata_sc = Load_spt_sc_to_AnnData(sptFile)
+    adata_sc.obs_names_make_unique()
+    adata_sc.var_names_make_unique()
     # Use ENSEMBL as gene IDs to make sure IDs are unique and correctly matched
     adata_sc.var['SYMBOL'] = adata_sc.var.index
     plt.ion()
@@ -62,8 +64,10 @@ def Cell2Location_rg_sc(adata_sc, max_epoches=250, batch_size=2500, train_size=1
     return inf_aver
 
 def Cell2Location_pp_sp(sptFile, h5data):
+    info = sptInfo(sptFile)
     adata_sp = Load_spt_to_AnnData(sptFile, h5data=h5data)
-    adata_sp.obs['sample'] = list(adata_sp.uns['spatial'].keys())[0]
+    adata_sp.var_names_make_unique()
+    adata_sp.obs['sample'] = info.name
 
     # rename genes to ENSEMBL
     adata_sp.var['SYMBOL'] = adata_sp.var_names

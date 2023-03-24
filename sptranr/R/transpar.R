@@ -61,6 +61,48 @@ Save_gt_to_spt <- function(sptFile, ground.truth, ground.sep=',', ground.name='g
   }
 }
 
+# Save ST data to spt
+Save_ST_to_spt <- function(st, sptFile, name=""){
+  library(stringr)
+  # Save name
+  if(length(name) != 0){
+    Create_spt_array1d(sptFile, name, "name", "character")
+  }
+
+  # Save platform
+  Create_spt_array1d(sptFile, "ST", "platform", "character")
+
+  # Save matrix
+  mat <- fread(st)
+  fea <- toupper(mat[[1]])
+  mat <- as.matrix(mat[, -1])
+  rownames(mat) <- fea
+  bar <- colnames(mat)
+  mat <- as(mat, "CsparseMatrix")
+  Create_spt_array1d(sptFile, toupper(bar), "matrix/barcodes", "character")
+  Create_spt_array1d(sptFile, fea, "matrix/features/name", "character")
+  Create_spt_array1d(sptFile, mat@x, "matrix/data", "integer")
+  Create_spt_array1d(sptFile, mat@i, "matrix/indices", "integer")
+  Create_spt_array1d(sptFile, mat@p, "matrix/indptr", "integer")
+  Create_spt_array1d(sptFile, mat@Dim, "matrix/shape", "integer")
+
+  # Save coordinates
+  coor <- str_split(bar, '[xX]')
+  coor <- t(data.frame(coor))
+  rownames(coor) <- bar
+  colnames(coor) <- c('row', 'col')
+  coor <- data.frame(coor)
+  coor <- as.data.frame(lapply(coor,as.numeric))
+  coor$tissue <- rep(1, length(coor$row))
+  Create_spt_array1d(sptFile, toupper(bar), "sptimages/coordinates/index", "character")
+  Create_spt_array1d(sptFile, coor$tissue, "sptimages/coordinates/tissue", "integer")
+  Create_spt_array1d(sptFile, coor$row, "sptimages/coordinates/row", "integer")
+  Create_spt_array1d(sptFile, coor$col, "sptimages/coordinates/col", "integer")
+  Create_spt_array1d(sptFile, coor$row, "sptimages/coordinates/imagerow", "integer")
+  Create_spt_array1d(sptFile, coor$col, "sptimages/coordinates/imagecol", "integer")
+
+}
+
 # Save 10X data to spt
 Save_10X_to_spt <- function(dir, sptFile, filtered.matrix = T, name = "",
                             ground.truth = NULL, ground.sep = ",",
@@ -70,6 +112,9 @@ Save_10X_to_spt <- function(dir, sptFile, filtered.matrix = T, name = "",
   if(length(name) != 0){
     Create_spt_array1d(sptFile, name, "name", "character")
   }
+
+  # Save platform
+  Create_spt_array1d(sptFile, "10X_Visium", "name", "character")
 
   # Save ground_truth
   if(!is.null(ground.truth)){
@@ -182,7 +227,15 @@ Save_10X_to_spt <- function(dir, sptFile, filtered.matrix = T, name = "",
 }
 
 # Save SlideSeq data to spt
-Save_SlideSeq_to_spt <- function(dir, sptFile){
+Save_SlideSeq_to_spt <- function(dir, sptFile, name=""){
+  # Save name
+  if(length(name) != 0){
+    Create_spt_array1d(sptFile, name, "name", "character")
+  }
+
+  # Save platform
+  Create_spt_array1d(sptFile, "Slide-seq", "platform", "character")
+
   countdir <- paste0(dir, "/Puck.count")
   idxdir <- paste0(dir, "/Puck.idx")
   count <- read.table(countdir, header = T, sep = ',')
@@ -267,11 +320,13 @@ Create_spt_h5data <- function(decont){
 }
 
 # Load spt to Seurat
-Load_spt_to_Seurat <- function(sptFile, imgdir, h5data='matrix'){
+Load_spt_to_Seurat <- function(sptFile, platform="10X_Visium", imgdir = "", h5data='matrix'){
   library(Seurat)
   seu_obj <- Load_h5_to_Seurat(sptFile, h5data)
   # h5img <- rhdf5::h5read(sptFile, "sptimages")
-  seu_obj <- Load_img_to_Seurat(imgdir, seu_obj)
+  if (platform == "10X_Visium"){
+    seu_obj <- Load_img_to_Seurat(imgdir, seu_obj)
+  }
   return(seu_obj)
 }
 
@@ -356,11 +411,11 @@ Save_spt_from_BayesSpace <-function (sptFile, Bayes,
                      mode = "integer")
 
   # create `is_HVG` group in features, which is differed by methods
-  sptloc = paste0(h5data, '/features/is_HVG/BayesSpace')
-  Create_spt_array1d(sptFile,
-                     arr = Bayes@rowRanges@elementMetadata@listData$is.HVG,
-                     sptloc = sptloc,
-                     mode = "logical")
+  # sptloc = paste0(h5data, '/features/is_HVG/BayesSpace')
+  # Create_spt_array1d(sptFile,
+  #                    arr = Bayes@rowRanges@elementMetadata@listData$is.HVG,
+  #                    sptloc = sptloc,
+  #                    mode = "logical")
 
   # save enhance
   if(save.enhanced == TRUE){
@@ -584,7 +639,7 @@ Load_spt_to_Giotto <- function(sptFile, h5data = 'matrix',
 }
 
 # spt to SpatialExperiment object
-Load_spt_to_SE <- function(sptFile, h5data = 'matrix'){
+Load_spt_to_SE <- function(sptFile, h5data = 'matrix', platform="10X_Visium"){
 
   library(SpatialExperiment)
   # find if need to do subset
@@ -617,17 +672,24 @@ Load_spt_to_SE <- function(sptFile, h5data = 'matrix'){
     colnames(id) <- ident
     colData <- cbind(colData, id)
   }
-  # read in images
-  rgb <- as.raster(h5img$lowres)
-  rgb <- SpatialExperiment::SpatialImage(rgb)
-  img <- S4Vectors::DataFrame(sample_id = "foo",
-                              image_id = "lowres")
-  img[["data"]] <- list(rgb)
-  img[["scaleFactor"]] <- h5img$scalefactors$lowres
-  spe <- SpatialExperiment(assays = list(counts = dat),
-                           colData = colData, rowData = rowData, imgData = img,
-                           spatialData = DataFrame(coord),
-                           sample_id = "foo")
+  # read in images in 10X Visium, oter platfroms may not contain images
+  if(platform == "10X_Visium"){
+    rgb <- as.raster(h5img$lowres)
+    rgb <- SpatialExperiment::SpatialImage(rgb)
+    img <- S4Vectors::DataFrame(sample_id = "foo",
+                                image_id = "lowres")
+    img[["data"]] <- list(rgb)
+    img[["scaleFactor"]] <- h5img$scalefactors$lowres
+    spe <- SpatialExperiment(assays = list(counts = dat),
+                             colData = colData, rowData = rowData, imgData = img,
+                             spatialData = DataFrame(coord),
+                             sample_id = "foo")
+  } else{
+    spe <- SpatialExperiment(assays = list(counts = dat),
+                             colData = colData, rowData = rowData,
+                             spatialData = DataFrame(coord),
+                             sample_id = "foo")
+  }
   # if existing subset
   if(length(datas) > 1){
     subset <- datas[length(datas)]

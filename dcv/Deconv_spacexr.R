@@ -11,14 +11,25 @@ source("sptranr/R/_scRNA-seq.R")
 params <- fromJSON(file = "params.json")
 sptFile <- params$sptFile
 params <- h5read(sptFile, "configs")
+platform <- params$platform
+if(is.null(platform)){
+  platform <- "10X_Visium"  # default using 10X_Visium
+}
 
 for(decont in params$Decontamination){
   h5data <- Create_spt_h5data(decont)
-
+  if(platform != "10X_Visium" && h5data == "SpotClean_mat"){
+    message("SpotClean only Support 10X Visium data, skip it.")
+    next
+  }
   # read References
   sce <- Load_sptsc_to_SCE(sptFile, "sc-ref")
+  anno <- sce$free_annotation
+  sce$free_annotation <- gsub("/", "^", anno)   #cell-types in RCTD don't support `/`, transport to `^`
+  anno <- table(anno)
   sr <- Load_spt_to_SpatialRNA(sptFile, h5data)
   ref <- GenerateRef_spacexr(sce)
   rctd <- Deconvolution_spacexr(sr, ref)
+  rctd@results$weights@Dimnames[[2]] <- attr(anno, "names")
   Save_spt_from_spacexr(sptFile, h5data, rctd)
 }

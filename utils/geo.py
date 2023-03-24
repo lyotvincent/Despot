@@ -4,7 +4,8 @@ import libpysal as lps
 from shapely.geometry import Point
 from utils.io import *
 from utils.purity import purity_score
-from vsl.visualization import Show_intersection_genes
+from utils.preprocess import *
+from vsl.visualization import Show_intersection_genes, Show_matched_domains, Show_matched_genes
 from sklearn.metrics import adjusted_rand_score
 from sklearn.metrics import normalized_mutual_info_score
 from scipy.stats import hypergeom
@@ -101,10 +102,11 @@ def suitable_location(adata, perf, clu, beta=1, greedy=2):
 
 def spTRS_findgroups(sptFile, beta=1, greedy=2):
     sptinfo = sptInfo(sptFile)
+    platform = sptinfo.configs['platform'][0]
     spmats = sptinfo.get_spmatrix()
     Best_Fscore = {}
     for spmat in spmats:
-        adata = Load_spt_to_AnnData(sptFile, spmat)
+        adata = Load_spt_to_AnnData(sptFile, spmat, platform=platform, loadDeconv=True)
         clu_mtds = sptinfo.get_clu_methods(spmat)
         dcv_mtds = sptinfo.get_dcv_methods(spmat)
         print(clu_mtds)
@@ -227,27 +229,51 @@ def Fscore_Comparison(Best_dict: dict, Best_Fscore):
 
 
 def Show_best_group(sptFile, cell_type, fscore, domain, mtd_chain: str, figname):
+    info = sptInfo(sptFile)
+    platform = info.configs['platform'][0]
+    print("platform:{0}".format(platform))
+    if platform != 'ST':
+        platform = '10X_Visium'
     mtds = mtd_chain.split('+')
     dct_mtd, dcv_mtd, clu_mtd = mtds[0], mtds[1], mtds[2]
     abd_name = dct_mtd + '_' + dcv_mtd + '_' + clu_mtd + '_' + cell_type
-    adata = Load_spt_to_AnnData(sptFile, count=dct_mtd)
+    adata = Load_spt_to_AnnData(sptFile, h5data=dct_mtd, loadDeconv=True, platform=platform)
     adata.obs[abd_name] = adata.obsm[dcv_mtd][cell_type]
-    fig, axs = plt.subplots(1, 2, figsize=(6, 3), constrained_layout=True)
-    sc.pl.spatial(adata, color=clu_mtd, ax=axs[0], show=False)
-    sc.pl.spatial(adata, color=abd_name, ax=axs[1], show=False)
-    axs[1].set_title(dcv_mtd)
-    fig.suptitle("find {0} locate in {1} using methods chain:"
+    Show_matched_domains(adata, clu_mtd, dcv_mtd, domain, cell_type, fscore, figname, platform=platform)
+    print("find {0} locate in {1} using methods chain:"
                  "\n{2}, F-score={3}".format(cell_type, str(domain), abd_name, fscore))
-    fig.savefig(figname, dpi=400)
 
 
-def Show_bash_best_group(sptFile, Best_dict, folder):
+
+def Show_bash_best_group(sptFile, folder, Best_dict=None):
     if not os.path.isdir(folder):
         os.makedirs(folder)
-    cell_types = list(Best_dict.keys())
+    sptinfo = sptInfo(sptFile)
+    Best_df = sptinfo.get_map_chains()
+    cell_types = []
+    if Best_dict is not None:
+        cell_types = list(Best_dict.keys())
+    else:
+        if len(Best_df) > 0:
+            cell_types = list(Best_df.index)
+            print(cell_types)
+
     for cell_type in cell_types:
-        Best_item = Best_dict[cell_type]
-        Show_best_group(sptFile, cell_type, Best_item[0], Best_item[1], Best_item[2], folder + "/" + cell_type + ".eps")
+        if Best_dict is not None:
+            Best_item = Best_dict[cell_type]
+            fscore = Best_item[0]
+            domain = Best_item[1]
+            mtds = Best_item[2].split('+')
+            dct_mtd, dcv_mtd, clu_mtd = mtds[0], mtds[1], mtds[2]
+        else:
+            Best_item = Best_df.loc[cell_type, :]
+            domain = Best_item['domain']
+            fscore =Best_item['F1-score']
+            dct_mtd, dcv_mtd, clu_mtd = Best_item['dct'], Best_item['dcv'], Best_item['clu']
+        mtd_chain = dct_mtd + '+' + dcv_mtd + '+' + clu_mtd
+        fig_cell_type = cell_type.replace('/', '.')  # illegal `/` in file path
+        figname = folder + "/" + fig_cell_type + ".svg"
+        Show_best_group(sptFile, cell_type, fscore, domain, mtd_chain, figname)
 
 
 def spTRS_self_correlation(sptFile, alpha=1, method='pearsonr'):
@@ -289,17 +315,30 @@ def spTRS_self_correlation(sptFile, alpha=1, method='pearsonr'):
             Save_spt_from_corrcoef(sptFile, coef, dcv, h5data=h5data)
 
 
-def spTRS_combine_best_group(sptFile, Best_dict):
-    cell_types = list(Best_dict.keys())
+def spTRS_combine_best_group(sptFile, Best_dict=None):
+    sptinfo = sptInfo(sptFile)
+    Best_df = sptinfo.get_map_chains()
+    cell_types = []
+    if Best_dict is not None:
+        cell_types = list(Best_dict.keys())
+    else:
+        if len(Best_df) > 0:
+            cell_types = list(Best_df.index)
+            print(cell_types)
     abundance = pd.DataFrame()
     sptinfo = sptInfo(sptFile)
     dct_mtds = sptinfo.get_spmatrix()
-    adatas = list(map(lambda dct: Load_spt_to_AnnData(sptFile, count=dct), dct_mtds))
+    adatas = list(map(lambda dct: Load_spt_to_AnnData(sptFile, h5data=dct), dct_mtds))
     adatas = dict(zip(dct_mtds, adatas))
     for cell_type in cell_types:
-        Best_item = Best_dict[cell_type]
-        mtds = Best_item[2].split('+')
-        dct_mtd, dcv_mtd, clu_mtd = mtds[0], mtds[1], mtds[2]
+        if Best_dict is not None:
+            Best_item = Best_dict[cell_type]
+            domain = Best_item[1]
+            mtds = Best_item[2].split('+')
+            dct_mtd, dcv_mtd, clu_mtd = mtds[0], mtds[1], mtds[2]
+        else:
+            Best_item = Best_df.loc[cell_type, :]
+            dct_mtd, dcv_mtd, clu_mtd = Best_item['dct'], Best_item['dcv'], Best_item['clu']
         abundance = pd.concat([abundance, adatas[dct_mtd].obsm[dcv_mtd][cell_type]], axis=1)
     geometry = [Point(xy) for xy in zip(adatas['matrix'].obs['array_row'], adatas['matrix'].obs['array_col'])]
     ad_gdf = GeoDataFrame(abundance, geometry=geometry, copy=True)
@@ -311,7 +350,7 @@ def spTRS_combine_best_group(sptFile, Best_dict):
     return comp, y_lag
 
 
-def spTRS_group_correlation(sptFile, Best_dict, alpha=1):
+def spTRS_group_correlation(sptFile, Best_dict=None, alpha=1):
     comp, y_lag = spTRS_combine_best_group(sptFile, Best_dict)
     # set alpha=0 to cancel the efficiency of neighbor expressions
     comp = comp + alpha * y_lag
@@ -349,7 +388,7 @@ def Generate_New_idents(sptFile, Best_dict):
     cell_types = list(Best_dict.keys())
     sptinfo = sptInfo(sptFile)
     dct_mtds = sptinfo.get_spmatrix()
-    adatas = list(map(lambda dct: Load_spt_to_AnnData(sptFile, count=dct), dct_mtds))
+    adatas = list(map(lambda dct: Load_spt_to_AnnData(sptFile, h5data=dct), dct_mtds))
     adatas = dict(zip(dct_mtds, adatas))
     new_idents = pd.DataFrame(index=adatas['matrix'].obs_names)
     # set all domain to NA
@@ -371,8 +410,9 @@ def Generate_New_idents(sptFile, Best_dict):
 
 
 # generate venn graph for multimodal integration analysis
-def Gen_venn(sptFile, folder, Best_dict=None, show_genes=1, cell_filter=None):
+def Gen_venn(sptFile, folder, Best_dict=None, show_genes=2, cell_filter=None):
     sptinfo = sptInfo(sptFile)
+    platform = sptinfo.configs['platform'][0]
     Best_df = sptinfo.get_map_chains()
     cell_types = []
     if Best_dict is not None:
@@ -382,12 +422,16 @@ def Gen_venn(sptFile, folder, Best_dict=None, show_genes=1, cell_filter=None):
             cell_types = list(Best_df.index)
             print(cell_types)
     dct_mtds = sptinfo.get_spmatrix()
-    adatas = list(map(lambda dct: Load_spt_to_AnnData(sptFile, count=dct), dct_mtds))
+    adatas = list(map(lambda dct: Load_spt_to_AnnData(sptFile, h5data=dct, platform=platform), dct_mtds))
+    for i in range(len(adatas)):
+        sc.pp.log1p(adatas[i])
     adatas = dict(zip(dct_mtds, adatas))
 
     # load the single cell data
     adata_sc = Load_spt_sc_to_AnnData(sptFile)
-    sc.pp.log1p(adata_sc)
+    from clu.Cluster_leiden import Spatial_Cluster_Analysis
+    adata_sc = Spatial_Cluster_Analysis(adata_sc)
+    adata_sc0 = adata_sc.copy()
     inter_genes = {}
     for cell_type in cell_types:
         if cell_filter is not None and cell_type in cell_filter:
@@ -405,7 +449,13 @@ def Gen_venn(sptFile, folder, Best_dict=None, show_genes=1, cell_filter=None):
         inter_gene = Gen_venn2(adata_sp, adata_sc, domain, clu_mtd, cell_type, folder)
         marker_genes = list(inter_gene.iloc[0:show_genes, 0])
         for marker in marker_genes:
-            Show_intersection_genes(sptFile, marker, folder, sptFile1=None, h5data='matrix', cell_type=cell_type)
+            figname = folder + '/' + marker + "_" + cell_type.replace('/', '|') + "_expr.eps"
+            Show_matched_genes(adata_sp=adata_sp,
+                               adata_sc=adata_sc0,
+                               cell_type=cell_type,
+                               genes=marker,
+                               platform=platform,
+                               figname=figname)
         inter_genes[cell_type] = inter_gene
     return inter_genes
 
@@ -413,8 +463,6 @@ def Gen_venn(sptFile, folder, Best_dict=None, show_genes=1, cell_filter=None):
 def Gen_venn2(adata_sp, adata_sc, domain, clu_mtd, cell_type, folder, pval=10e-6, effect=0.5):
     # generating venn graph for intersection genes from scRNA-seq and ST
     from matplotlib_venn import venn2
-    sc.pp.log1p(adata_sp)
-    sc.pp.log1p(adata_sc)
     adata_sp.obs[clu_mtd] = adata_sp.obs[clu_mtd].astype('str')
 
     if type(domain) == tuple:
@@ -448,7 +496,8 @@ def Gen_venn2(adata_sp, adata_sc, domain, clu_mtd, cell_type, folder, pval=10e-6
                  bbox=dict(boxstyle='round,pad=0.5', fc='grey', alpha=0.7),
                  arrowprops=dict(arrowstyle='-|>', connectionstyle='arc3,rad=-0.5', color='black')
                  )
-    fig.savefig(folder + "/" + cell_type + "_.eps", dpi=400)
+    figname = folder + "/" + cell_type.replace("/", ".") + "_.eps"
+    fig.savefig(figname, dpi=400)
     return inter_genes
 
 
@@ -498,8 +547,9 @@ def Gen_venn3(adata_sp, adata_sc1, adata_sc2, domain, clu_mtd, cell_type1, cell_
 def spTRS_DE(sptFile, Best_dict, cell_type1, cell_type2):
     # use sptinfo to load decontamination methods
     sptinfo = sptInfo(sptFile)
+    platform = sptinfo.configs['platform'][0]
     dct_mtds = sptinfo.get_spmatrix()
-    adatas = list(map(lambda dct: Load_spt_to_AnnData(sptFile, count=dct), dct_mtds))
+    adatas = list(map(lambda dct: Load_spt_to_AnnData(sptFile, h5data=dct, platform=platform), dct_mtds))
     adatas = dict(zip(dct_mtds, adatas))
     Best_item1 = Best_dict[cell_type1]
     Best_item2 = Best_dict[cell_type2]

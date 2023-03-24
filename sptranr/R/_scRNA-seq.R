@@ -359,7 +359,8 @@ Load_txtsc_to_SCE <- function(scmat, scgth = NA, scgnm = NA){
   fea <- toupper(mat[[1]])
   mat <- as.matrix(mat[, -1])
   rownames(mat) <- fea
-  bar <- colnames(mat)
+  bar <- c(paste("cell", 1:ncol(mat), sep = "_"))
+  colnames(mat) <- bar
   mat <- as(mat, "CsparseMatrix")
   if(is.na(scgth)){
     sce <- SingleCellExperiment(assays = list(counts = mat),
@@ -367,7 +368,7 @@ Load_txtsc_to_SCE <- function(scmat, scgth = NA, scgnm = NA){
                                 colData = DataFrame(barcodes = bar))
   }
   else{
-    gth <- fread(scgth, header = T)
+    gth <- fread(scgth)
     gth <- gth[[scgnm]]
     sce <- SingleCellExperiment(assays = list(counts = mat),
                                 rowData = DataFrame(gene_name = fea),

@@ -11,10 +11,18 @@ source("sptranr/R/_scRNA-seq.R")
 params <- fromJSON(file = "params.json")
 sptFile <- params$sptFile
 refdir <- paste0(params$tempdir, "/references")
-
+platform <- params$platform
+if(is.null(platform)){
+  platform <- "10X_Visium"  # default using 10X_Visium
+}
 
 for(decont in params$Decontamination){
   h5data <- Create_spt_h5data(decont)
+  if(platform != "10X_Visium" && h5data == "SpotClean_mat"){
+    message("SpotClean only Support 10X Visium data, skip it.")
+    next
+  }
+
   # read References
   sce <- Load_sptsc_to_SCE(sptFile, "sc-ref-es")
   rownames(sce) <- toupper(rownames(sce))
@@ -22,7 +30,7 @@ for(decont in params$Decontamination){
   sce@metadata[['HVGs']] <- rownames(sce)
 
   # Load the spatial transcriptome data to SE: SpatialExperiment
-  spe <- Load_spt_to_SE(sptFile, h5data)
+  spe <- Load_spt_to_SE(sptFile, h5data, platform = platform)
   # Use the symbol as rownames
   rownames(spe) <- rowData(spe)$symbol
   spotlight <- Deconvolution_SPOTlight(spe, sce)
