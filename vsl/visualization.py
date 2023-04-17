@@ -1,6 +1,10 @@
 from utils.io import *
 from utils.preprocess import *
 import seaborn as sns
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+from vsl.palette import Set_palette
+from vsl.boundary import boundary_extract, show_edge
 
 
 # report the sptFile, including brief information, umap graphs, deconvolution composition
@@ -50,82 +54,143 @@ def Show_Origin_histology(sptFile, figname, hires=True, key=None):
     sc.pl.spatial(adata, img_key='hires', ax=axs, color=key)
     fig.savefig(figname, dpi=400)
 
-def Show_matched_genes(adata_sp, adata_sc, genes, cell_type, figname, platform='ST'):
+
+def Ax_expr_spgenes(adata_sp, genes, ax, platform='ST', title=None):
     plt.rcParams["font.sans-serif"] = ["Arial"]
     plt.rcParams["axes.unicode_minus"] = False
-
     expr = adata_sp.to_df().loc[:, genes]
 
     if platform == 'ST':
-        fig, axs = plt.subplots(1, 2, figsize=(6, 3), constrained_layout=True)
-        axs[0].scatter(x=adata_sp.obs['array_row'], y=adata_sp.obs['array_col'], c=expr, cmap='viridis')
-        axs[0].set_xticks(ticks=[])
-        axs[0].set_yticks(ticks=[])
-        axs[0].spines.top.set_visible(False)
-        axs[0].spines.bottom.set_visible(False)
-        axs[0].spines.left.set_visible(False)
-        axs[0].spines.right.set_visible(False)
-        axs[0].set_xlabel('')
-        axs[0].set_ylabel('')
-        axs[0].set_title("")
+        ax.scatter(x=adata_sp.obs['array_row'], y=adata_sp.obs['array_col'], c=expr, cmap='coolwarm')
+        ax.set_xticks(ticks=[])
+        ax.set_yticks(ticks=[])
+        ax.spines.top.set_visible(False)
+        ax.spines.bottom.set_visible(False)
+        ax.spines.left.set_visible(False)
+        ax.spines.right.set_visible(False)
+        ax.set_xlabel('')
+        ax.set_ylabel('')
+        ax.set_title("{0}".format(genes))
+    elif platform == '10X_Visium':
+        # show img
+        img_key = list(adata_sp.uns['spatial'].keys())[0]
+        sf = adata_sp.uns['spatial'][img_key]['scalefactors']['tissue_lowres_scalef']
+        x,y = adata_sp.obs['image_col']*sf, adata_sp.obs['image_row']*sf
+        xmin, xmax = int(np.min(x) - 5), int(np.max(x) + 5)
+        ymin, ymax = int(np.min(y) - 5), int(np.max(y) + 5)
+        x -= xmin
+        y -= ymin
+        ax.imshow(adata_sp.uns['spatial'][img_key]['images']['lowres'][ymin:ymax, xmin:xmax], alpha=0.8)
+        ax.scatter(x=x, y=y, c=expr,
+                       cmap='coolwarm', marker='.', s=10)
+        ax.spines.top.set_visible(False)
+        ax.spines.bottom.set_visible(False)
+        ax.spines.left.set_visible(False)
+        ax.spines.right.set_visible(False)
+        ax.set_xticks(ticks=[])
+        ax.set_yticks(ticks=[])
+        ax.set_xlabel('')
+        ax.set_ylabel('')
+        ax.set_title(title)
 
-        sc.pl.umap(adata_sc, color=genes, show=False, ax=axs[1])
-        axs[1].spines.top.set_visible(False)
-        axs[1].spines.bottom.set_visible(False)
-        axs[1].spines.left.set_visible(False)
-        axs[1].spines.right.set_visible(False)
-        axs[1].set_xlabel('')
-        axs[1].set_ylabel('')
-        axs[1].set_title("")
-        fig.suptitle("{0}".format(genes))
-        fig.savefig(figname, dpi=400)
 
-def Show_matched_domains(adata, clu_mtd, dcv_mtd, domains, cell_type, f1score, figname, platform='ST'):
-    from matplotlib import cm, colors
+def Ax_expr_scgenes(adata_sc, genes, ax, title=None):
+    sc.pl.umap(adata_sc, color=genes, show=False, ax=ax, cmap='coolwarm')
+    ax.spines.top.set_visible(False)
+    ax.spines.bottom.set_visible(False)
+    ax.spines.left.set_visible(False)
+    ax.spines.right.set_visible(False)
+    ax.set_xlabel('')
+    ax.set_ylabel('')
+    ax.set_title(title)
+
+
+def Show_matched_genes(adata_sp, adata_sc, genes, figname, platform='ST'):
     plt.rcParams["font.sans-serif"] = ["Arial"]
     plt.rcParams["axes.unicode_minus"] = False
-    vega_10 = list(map(colors.to_hex, cm.tab10.colors))
-    vega_10_scanpy = vega_10.copy()
-    vega_10_scanpy[3] = '#ad494a'
-    vega_10_scanpy[2] = '#279e68'  # green
-    vega_10_scanpy[4] = '#aa40fc'  # purple
-    vega_10_scanpy[8] = '#b5bd61'  # kakhi
 
-    vega_20 = list(map(colors.to_hex, cm.tab20.colors))
+    fig, axs = plt.subplots(1, 2, figsize=(6, 3), constrained_layout=True)
+    Ax_expr_spgenes(adata_sp, genes, ax=axs[0], platform=platform, title="")
+    Ax_expr_scgenes(adata_sc, genes, ax=axs[1], title="")
+    fig.suptitle("{0}".format(genes))
+    fig.savefig(figname, dpi=400)
 
-    # reorderd, some removed, some added
-    vega_20_scanpy = [
-        # dark without grey:
-        *vega_20[0:14:2],
-        *vega_20[16::2],
-        # light without grey:
-        *vega_20[1:15:2],
-        *vega_20[17::2],
-        # manual additions:
-        '#ad494a',
-        '#8c6d31',
-    ]
-    vega_20_scanpy[2] = vega_10_scanpy[2]
-    vega_20_scanpy[4] = vega_10_scanpy[4]
-    vega_20_scanpy[7] = vega_10_scanpy[8]  # kakhi shifted by missing grey
 
-    # set palette
-    if len(np.unique(adata.obs[clu_mtd])) <= 10:
-        palette = vega_10_scanpy
-        cmap = 'tab10'
-    else:
-        palette = vega_20_scanpy
-        cmap = 'tab20'
+def Show_row_spgenes(adata_sp, genes, figname, platform='ST'):
+    ngenes = len(genes)
+    fig, axs = plt.subplots(1, ngenes, figsize=(3 * ngenes, 3), constrained_layout=True)
+    Ax_expr_spgenes(adata_sp, genes, ax=axs[0], platform=platform, title="")
+    fig.savefig(figname, dpi=400)
 
+
+def Ax_prop_domains(adata, clu_mtd, dcv_mtd, domains, cell_type, ax, title, f1score, platform='ST'):
+    plt.rcParams["font.sans-serif"] = ["Arial"]
+    plt.rcParams["axes.unicode_minus"] = False
+    plt.rcParams['font.size'] = 14
+    # select domain
+    selection = np.zeros_like(adata.obs[clu_mtd])
+    for d in domains:
+        selection += (np.array(adata.obs[clu_mtd], dtype=int) == d)
+    selection = np.array(selection, dtype=bool)
+
+    # property
+    prop = adata.obsm[dcv_mtd][cell_type]
+
+    if platform == '10X_Visium':
+        adata.obs[cell_type] = prop
+        img_key = list(adata.uns['spatial'].keys())[0]
+        sf = adata.uns['spatial'][img_key]['scalefactors']['tissue_lowres_scalef']
+
+        # show img
+        x,y = adata.obs['image_col']*sf, adata.obs['image_row']*sf
+        xmin, xmax = int(np.min(x) - 5), int(np.max(x) + 5)
+        ymin, ymax = int(np.min(y) - 5), int(np.max(y) + 5)
+        x -= xmin
+        y -= ymin
+        pts = np.array([x[selection], y[selection]]).T
+        alpha = 40 / np.max(pts)
+        edges, centers = boundary_extract(pts, alpha, err=10e-5)
+        ax.imshow(adata.uns['spatial'][img_key]['images']['lowres'][ymin:ymax, xmin:xmax], alpha=0.8)
+        ax.scatter(x=x, y=y, c=prop,
+                       cmap='cividis', marker='.', s=10)
+        show_edge(edges, ax, label='F1score: %.3f' % f1score, linewidth=1.5)
+        ax.set_xticks(ticks=[])
+        ax.set_yticks(ticks=[])
+        ax.set_xlabel('')
+        ax.set_ylabel('')
+        ax.spines.top.set_visible(False)
+        ax.spines.bottom.set_visible(False)
+        ax.spines.left.set_visible(False)
+        ax.spines.right.set_visible(False)
+        ax.legend(loc='lower right',
+                      handletextpad=0.3,
+                      borderpad=0.5,
+                      borderaxespad=1.05,
+                      columnspacing=0.7,
+                      handlelength=0.7,
+                      fontsize=12)
+        ax.set_title(title)
+
+
+def Show_matched_domains(adata, clu_mtd, dcv_mtd, domains, cell_type, f1score, platform='ST'):
+    from vsl.boundary import boundary_extract, show_edge
+
+    plt.rcParams["font.sans-serif"] = ["Arial"]
+    plt.rcParams["axes.unicode_minus"] = False
+    plt.rcParams['font.size'] = 14
+    palette, cmap = Set_palette(len(np.unique(adata.obs[clu_mtd])))
+    ncols = 1
+    if len(np.unique(adata.obs[clu_mtd])) > 10:
+        ncols = 2
     # set min label=0
     origin_label = np.array(adata.obs[clu_mtd], dtype=int)
     label = np.array(adata.obs[clu_mtd], dtype=int)
     min_label = np.min(label)
     label = label - min_label
-    labels = list(map(lambda x: palette[x], label))
+    # labels = list(map(lambda x: palette[x], label))
 
     # set vpad of legends
-    vpad = 0.1 - 0.01 * len(np.unique(label))
+    vpad = 0.1 + 0.01 * len(np.unique(label))
 
     # select domain
     selection = np.zeros_like(adata.obs[clu_mtd])
@@ -133,9 +198,9 @@ def Show_matched_domains(adata, clu_mtd, dcv_mtd, domains, cell_type, f1score, f
         selection += (np.array(adata.obs[clu_mtd], dtype=int) == d)
     selection = np.array(selection, dtype=bool)
     adata0 = adata[selection]
-    label0 = np.array(adata0.obs[clu_mtd], dtype=int)
-    label0 = label0 - min_label
-    labels0 = list(map(lambda x: palette[x], label0))
+    # label0 = np.array(adata0.obs[clu_mtd], dtype=int)
+    # label0 = label0 - min_label
+    # labels0 = list(map(lambda x: palette[x], label0))
     if len(domains) == 1:
         dm = domains[0] - min_label
     else:
@@ -161,6 +226,7 @@ def Show_matched_domains(adata, clu_mtd, dcv_mtd, domains, cell_type, f1score, f
         axs[0].set_title("{0}: {1}".format(cell_type, dm))
         axs[0].legend(handles=handles.legend_elements()[0],
                       labels=list(np.unique(label)),
+                      ncol=ncols,
                       frameon=False,
                       bbox_to_anchor=(-0.23, vpad),
                       handletextpad=0.1,
@@ -187,23 +253,24 @@ def Show_matched_domains(adata, clu_mtd, dcv_mtd, domains, cell_type, f1score, f
                       columnspacing=0.7)
         plt.colorbar(axs[1].get_children()[1], ax=axs[1], pad=0)
         axs[1].set_title("F1-score of SCSP: {0}".format(f1score))
-        fig.savefig(figname, dpi=400)
+        return fig
 
     elif platform == '10X_Visium':
-        fig, axs = plt.subplots(1, 2, figsize=(7, 3.5), constrained_layout=True)
         adata.obs[cell_type] = prop
+        adata0 = adata[selection]
+        pts = np.array(adata0.obs[['image_col', 'image_row']])
+        alpha = 50 / np.max(pts)
+        edges, centers = boundary_extract(pts, alpha, err=10e-5)
+        fig, axs = plt.subplots(1, 2, figsize=(7, 3.5), constrained_layout=True)
         sc.pl.spatial(adata,
-                      img_key= None,
                       color=[clu_mtd],
-                      s=50,
-                      palette = vega_10_scanpy,
+                      palette=palette,
                       alpha=0.7,
                       ax=axs[0])
-        axs[0].scatter(x=adata0.obs['image_col'], y=adata0.obs['image_row'], c=[],
-                       marker='o', edgecolors='r',
-                       linewidths=0.7, alpha=0.8, s=12)
+        show_edge(edges, axs[0], label='SCSP')
         axs[0].legend(frameon=False,
-                      labels = list(np.unique(label)),
+                      labels=list(np.unique(label)),
+                      ncol=ncols,
                       bbox_to_anchor=(-0.35, vpad),
                       handletextpad=0.1,
                       borderpad=0.5,
@@ -222,11 +289,9 @@ def Show_matched_domains(adata, clu_mtd, dcv_mtd, domains, cell_type, f1score, f
         sc.pl.spatial(adata,
                       img_key= None,
                       color=[cell_type],
-                      s=50,
                       cmap='viridis',
                       ax=axs[1])
-        axs[1].scatter(x=adata0.obs['image_col'], y=adata0.obs['image_row'], c=[], s=12,
-                       label='SCSP', marker='o', edgecolors='r', linewidths=0.8, alpha=0.6)
+        show_edge(edges, axs[1], label='SCSP')
         axs[1].set_xticks(ticks=[])
         axs[1].set_yticks(ticks=[])
         axs[1].set_xlabel('')
@@ -236,12 +301,29 @@ def Show_matched_domains(adata, clu_mtd, dcv_mtd, domains, cell_type, f1score, f
         axs[1].spines.left.set_visible(False)
         axs[1].spines.right.set_visible(False)
         axs[1].legend(loc='lower right',
-                      handletextpad=0.05,
+                      handletextpad=0.3,
                       borderpad=0.5,
                       borderaxespad=1.05,
-                      columnspacing=0.7)
-        axs[1].set_title("F1-score of SCSP: {0}".format(f1score))
-        fig.savefig(figname, dpi=400)
+                      columnspacing=0.7,
+                      handlelength=0.7)
+        axs[1].set_title("F1-score of SCSP: %.3f" % f1score)
+        return fig
+    plt.rcParams["font.sans-serif"] = ["Arial"]
+    plt.rcParams["axes.unicode_minus"] = False
+
+
+def Show_prop_domains(adata, clu_mtd, dcv_mtd, domains, cell_type, f1score, platform='ST'):
+    fig, axs = plt.subplots(1, 1, figsize=(3, 3), constrained_layout=True)
+    Ax_prop_domains(adata,
+                    clu_mtd,
+                    dcv_mtd,
+                    domains,
+                    cell_type=cell_type,
+                    ax=axs,
+                    title=cell_type,
+                    f1score=f1score,
+                    platform=platform)
+    return fig
 
 
 def Show_Spatial(sptFile, figname, key, h5data='matrix', do_cluster=True, platform="10X_Visium"):
@@ -493,3 +575,8 @@ def Show_DS_comparison(sptFile, figname, h5data='scRNA_seq'):
     sc.pl.umap(scdata1, color='clusters', palette=sc.pl.palettes.default_20, size=14, ax=axs[1], show=False)
     axs[1].set_title("VAE DownSample ARI={:.2f}".format(ARI1))
     fig.savefig(figname, dpi=400)
+
+
+def show_coutour(adata, level):
+    pts = np.array(adata.obs[['image_col', 'image_row', 'BayesSpace']])
+    plt.contour(pts, levels=[9])

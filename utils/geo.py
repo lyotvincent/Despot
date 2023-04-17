@@ -1,11 +1,15 @@
 import esda
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 from geopandas import GeoDataFrame
 import libpysal as lps
 from shapely.geometry import Point
 from utils.io import *
 from utils.purity import purity_score
 from utils.preprocess import *
-from vsl.visualization import Show_intersection_genes, Show_matched_domains, Show_matched_genes
+from vsl.visualization import Show_intersection_genes, Show_matched_domains, Show_matched_genes, Show_prop_domains, \
+    Ax_prop_domains, Ax_expr_spgenes
 from sklearn.metrics import adjusted_rand_score
 from sklearn.metrics import normalized_mutual_info_score
 from scipy.stats import hypergeom
@@ -65,12 +69,12 @@ def suitable_location(adata, perf, clu, beta=1, greedy=2):
         clusters = adata.obs[clu]
         clu_num = np.unique(adata.obs[clu])
         temp = pd.concat([spots, clusters], axis=1)
-        max_Fscore = 0
-        bst_cl = None
         domain_list = []  # suitable domains
         # Use greedy strategy to integrate other domains
+        max_Fscore = 0
+        bst_cl = None
         for g in range(greedy):
-            if g > len(clu_num):
+            if g > len(clu_num):  # stop if greedy num larger than cluster num
                 break
             for cl in clu_num:
                 clu_spot = temp[clu] == cl
@@ -87,7 +91,7 @@ def suitable_location(adata, perf, clu, beta=1, greedy=2):
                 if precision == 0 and recall == 0:
                     Fscore = 0
                 else:
-                    Fscore = (1 + beta ** 2) * (precision * recall) / (beta ** 2 * (precision + recall))
+                    Fscore = (2 * beta) * (precision * recall) / (precision + beta * recall)
                 if Fscore > max_Fscore:
                     max_Fscore = Fscore
                     bst_cl = cl
@@ -100,7 +104,7 @@ def suitable_location(adata, perf, clu, beta=1, greedy=2):
     return best_match
 
 
-def spTRS_findgroups(sptFile, beta=1, greedy=2):
+def spTRS_findgroups(sptFile, beta=1, greedy=1):
     sptinfo = sptInfo(sptFile)
     platform = sptinfo.configs['platform'][0]
     spmats = sptinfo.get_spmatrix()
@@ -122,9 +126,11 @@ def spTRS_findgroups(sptFile, beta=1, greedy=2):
     return Best_Fscore
 
 
-def spTRS_Find_bestGroup(sptFile, beta=1, greedy=2):
+def spTRS_Find_bestGroup(sptFile, beta=1, greedy=1):
     Best_Fscore = spTRS_findgroups(sptFile, beta, greedy)
     Best_dict = {}
+
+    # find the best method chains
     for mtd in Best_Fscore.keys():
         mtd_Fscore = Best_Fscore[mtd]
         # for each cell-type, find the cluster which has the highest Fscore
@@ -134,6 +140,55 @@ def spTRS_Find_bestGroup(sptFile, beta=1, greedy=2):
             else:
                 if mtd_Fscore.loc[ct, 'F-score'] > Best_dict[ct][0]:
                     Best_dict[ct] = (mtd_Fscore.loc[ct, 'F-score'], mtd_Fscore.loc[ct, 'domain'], mtd)
+
+    # check the domains if we need to extend
+    sptinfo = sptInfo(sptFile)
+    platform = sptinfo.configs['platform'][0]
+    for ct in Best_dict.keys():
+        f1score, domains, mtd = Best_dict[ct]
+        spmat, dcv, clu = mtd.split('+')
+        adata = Load_spt_to_AnnData(sptFile, spmat, platform=platform, loadDeconv=True)
+        if type(domains) == int:
+            domain_list = [domains]
+        else:
+            domain_list = [d for d in domains]
+        perf = p_moransI_purity(adata, dcv_mtd=dcv, clu=clu)
+        perf = perf[perf['moransI'] > 0.5]
+        spots = adata.obs['p_moransI_' + ct]
+        clusters = adata.obs[clu]
+        clu_num = np.unique(adata.obs[clu])
+        temp = pd.concat([spots, clusters], axis=1)
+        max_Fscore = f1score
+        bst_cl = None
+        for i in clu_num:
+            for cl in clu_num:
+                clu_spot = temp[clu] == cl
+                for i in domain_list:
+                    clu_spot += temp[clu] == i
+                temp0 = temp[clu_spot]
+                precision = len(temp0[temp0['p_moransI_' + ct] == 1]) / len(temp0)
+
+                temp1 = temp[temp['p_moransI_' + ct] == 1]
+                clu_spot1 = temp1[clu] == cl
+                for i in domain_list:
+                    clu_spot1 += temp1[clu] == i
+                recall = len(temp1[clu_spot1]) / len(temp1)
+                if precision == 0 and recall == 0:
+                    Fscore = 0
+                else:
+                    Fscore = (2 * beta) * (precision * recall) / (precision + beta * recall)
+                if Fscore > max_Fscore:
+                    max_Fscore = Fscore
+                    bst_cl = cl
+            if bst_cl is not None:
+                domain_list.append(bst_cl)
+            bst_cl = None
+            if max_Fscore > f1score:
+                f1score = max_Fscore
+            else:
+                break
+        Best_dict[ct] = (f1score, tuple(domain_list), mtd)
+
     Save_spt_from_BestDict(sptFile, Best_dict)
     # find markers for each region
     # for cell_type in Best_dict.keys():
@@ -145,6 +200,23 @@ def spTRS_Find_bestGroup(sptFile, beta=1, greedy=2):
     #     adata = Load_spt_to_AnnData(sptFile, count=dct_mtd)
     #     sc.tl.filter_rank_genes_groups(adata, key=region, groupby=clu_mtd)
     return Best_dict, Best_Fscore
+
+
+def Pipline_findgroups(sptFile, pipline, beta=1, greedy=1):
+    sptinfo = sptInfo(sptFile)
+    platform = sptinfo.configs['platform'][0]
+    spmat = 'matrix'
+    clu_mtds = sptinfo.get_clu_methods(spmat)
+    dcv_mtds = sptinfo.get_dcv_methods(spmat)
+    BST = None
+    for dcv in dcv_mtds:
+        for clu in clu_mtds:
+            if clu == pipline and dcv == pipline:
+                adata = Load_spt_to_AnnData(sptFile, spmat, platform=platform, loadDeconv=True)
+                perf = p_moransI_purity(adata, dcv_mtd=dcv, clu=clu)
+                perf = perf[perf['moransI'] > 0.5]
+                BST = suitable_location(adata, perf, clu, beta, greedy)
+    return BST
 
 
 def Fscore_Comparison(Best_dict: dict, Best_Fscore):
@@ -228,10 +300,189 @@ def Fscore_Comparison(Best_dict: dict, Best_Fscore):
     return pip_res
 
 
-def Show_best_group(sptFile, cell_type, fscore, domain, mtd_chain: str, figname):
+def Show_Comparison(pip_res:pd.DataFrame,folder, compare='platform'):
+    from vsl.palette import Set_palette
+    plt.rcParams["font.sans-serif"] = ["Arial"]
+    plt.rcParams["axes.unicode_minus"] = False
+    plt.rcParams['font.size'] = 14
+    comp_mtds = ['Giotto', 'Seurat', 'spTRS']
+
+    # cmap = ['#7FC97F','#BEAED4', '#FDC086']
+    comp_res = pip_res.loc[comp_mtds, :]
+    comp_ct = list(pip_res.columns)
+    comp_ct.sort()
+    palette, cmap = Set_palette(len(comp_ct))
+    x = np.arange(len(comp_mtds)) * 3
+    all_width = 2.5  # the width of the bars
+    # fig = None
+    # if ax is None:
+    fig, ax = plt.subplots(1, 1, figsize=(3.5,3), constrained_layout=True)
+    for m in range(len(comp_mtds)):
+        comp_mtd = comp_mtds[m]
+        measurement = comp_res.loc[comp_mtd, :]
+        measurement = pd.DataFrame([np.nan_to_num(item) for item in measurement], index=comp_res.columns)
+        measurement = measurement.sort_index()
+        bar_width = all_width / sum(list(measurement.loc[:, 0] > 0))
+        multiplier = 0
+        for ct in measurement.index:
+            if measurement.loc[ct, 0] > 0:
+                offset = bar_width * multiplier
+                rects = ax.bar(x[m] + offset, measurement.loc[ct, 0], bar_width, color=palette[comp_ct.index(ct)])
+                ax.bar_label(rects, padding=3, fmt='%.2f', rotation=90, fontsize=10)
+                multiplier += 1
+    ax.set_title('F1-score (Slice2)', fontsize=14)
+    ax.set_xticks(x+all_width/3, ['Giotto', 'Seurat', 'Despot'])
+    ax.set_yticks([.0, .5, 1.0])
+    ax.set_yticklabels([.0, .5, 1.0], fontsize=10)
+    ax.set_ylim(-0.03, 1.1)
+    ax.set_xlim(-0.5, max(x)+all_width)
+    ax.spines.top.set_visible(False)
+    ax.spines.right.set_visible(False)
+    fig.savefig(folder+'/platform_comparison.svg', dpi=400)
+    return fig
+
+    # for i in range(len(comp_mtd)):
+    #     attribute = comp_mtd[i]
+    #     measurement = comp_res.iloc[i, :]
+    #     measurement = [np.nan_to_num(item) for item in measurement]
+    #     offset = width * multiplier
+    #     rects = ax.bar(x + offset, measurement, width, label=attribute, color=cmap[i])
+    #     ax.bar_label(rects, padding=3, fmt='%.2f', rotation=90)
+    #     multiplier += 1
+    #
+    # # Add some text for labels, title and custom x-axis tick labels, etc.
+    # ax.set_ylabel('F1-score')
+    # ax.set_xticks(x + width, comp_ct, rotation=20)
+    # ax.legend(loc='upper left', ncol=3)
+    # ax.set_ylim(0, 1.1)
+
+
+# 3D landscape for SCSPs
+def Show_3D_landscape(sptFile, folder=None, cell_types=None, sf=None, pipline=None):
+    from mpl_toolkits.mplot3d import Axes3D
+    from vsl.boundary import boundary_extract, show_edge
+    from PIL import Image
+    from pylab import ogrid
+    from vsl.palette import Set_palette
+    plt.rcParams["font.sans-serif"] = ["Arial"]
+    plt.rcParams["axes.unicode_minus"] = False
+    sptinfo = sptInfo(sptFile)
+    # handle images
+    img = Image.open(sptinfo.get_imgPath('low'))
+    img0 = np.array(img) / 255
+    img0 = img0
+    img0[img0 > 1] = 1
+    w, h = img.height, img.width
+
+    # handle coordinates
+    coords = sptinfo.get_coords()
+    if sf is None:
+        sf = sptinfo.get_sf(solution='low')
+    x, y = coords.loc[:, 'image_row'] * sf, coords.loc[:, 'image_col'] * sf
+    xmin, xmax = int(np.min(x) - 60), int(np.max(x) + 60)
+    ymin, ymax = int(np.min(y) - 60), int(np.max(y) + 60)
+    x -= xmin
+    y -= ymin
+    imgX, imgY = ogrid[0:(xmax - xmin), 0:(ymax - ymin)]
+
+    # handle the compared pipline or Despot
+    # the full cell-types for SCSPs
+    full_ct = list(sptinfo.get_map_chains().index)
+    full_ct.sort()
+    if pipline is None:
+        Best_df = sptinfo.get_map_chains()
+        figname = folder + '/landscape.svg'
+    else:
+        Best_df = Pipline_findgroups(sptFile, pipline, beta=1, greedy=1)
+        Best_df['dct'] = 'matrix'
+        Best_df['dcv'] = pipline
+        Best_df['clu'] = pipline
+        figname = folder + '/{0}.svg'.format(pipline)
+    if cell_types is None:
+        if len(Best_df) > 0:
+            cell_types = list(Best_df.index)
+            print(cell_types)
+        else:
+            cell_types = []
+
+    # arrange the cell_types
+    spot3Ds = {}
+    centroid = []
+    cell_types.sort()  # first sort the cell-type by alphabets
+    for cell_type in cell_types:
+        Best_item = Best_df.loc[cell_type, :]
+        domain = Best_item['domain']
+        if type(domain) == int:
+            domain = (domain,)
+        dct_mtd, dcv_mtd, clu_mtd = Best_item['dct'], Best_item['dcv'], Best_item['clu']
+        idents = sptinfo.get_idents(dct_mtd)[clu_mtd]
+
+        spot3D = pd.concat([x, y, idents], axis=1)
+        spot3D.columns = ['X', 'Y', 'level']
+        # select domain
+        selection = np.zeros_like(idents)
+        for d in domain:
+            selection += (np.array(idents, dtype=int) == d)
+        selection = np.array(selection, dtype=bool)
+        spot3D = spot3D[selection]
+        spot3Ds[cell_type] = spot3D
+        # the closer cell-type has a lower layer
+        center = (- spot3D['X'].min() + spot3D['Y'].max()) + 2 * (- spot3D['X'].mean() + spot3D['Y'].mean())
+        centroid.append(center)
+    centroid = pd.DataFrame(centroid, index=cell_types)
+
+    # plot the figure with Axes3D
+    fig = plt.figure(figsize=(15, 10))
+    ax1 = plt.axes(projection='3d')
+    arranged_types = centroid.sort_values(by=0)
+    palette, cmap = Set_palette(len(cell_types))
+    z = 0  # the Z index
+    prev_spot3D = None
+    for cell_type in arranged_types.index:
+        color = palette[full_ct.index(cell_type)]  # get the related cell-type color
+        spot3D = spot3Ds[cell_type]
+        if prev_spot3D is None:
+            z = z + 1
+        else:
+            if len(pd.merge(prev_spot3D[['X', 'Y']], spot3D[['X', 'Y']], how='inner')) > 0:
+                z = z + 1
+        pts = np.array(spot3D[['X', 'Y']])
+        alpha = 0.1
+        edges, centers = boundary_extract(pts, alpha, err=10e-5)
+        spot3D['Z'] = np.ones_like(spot3D.index) * z
+        ax1.scatter3D(np.array(spot3D['X'], dtype=float),
+                      np.array(spot3D['Y'], dtype=float),
+                      np.array(spot3D['Z'], dtype=float),
+                      color=color, label=cell_type, s=10, alpha=0.8)
+        sel_line = np.random.randint(len(spot3D.index), size=max(round(len(spot3D.index) / 20), 5))
+        for item in sel_line:
+            x = spot3D['X'][item]
+            y = spot3D['Y'][item]
+            zz = spot3D['Z'][item]
+            ax1.plot([x, x], [y, y], [zz, 0], color=color, alpha=0.5, linewidth=0.75)
+        show_edge(edges, ax1, z=0, color=color, linewidth=2, alpha=1, label=None)
+        prev_spot3D = spot3Ds[cell_type]
+    ax1.plot_surface(imgX, imgY, np.atleast_2d(0), rstride=10, cstride=10, facecolors=img0[xmin:xmax, ymin:ymax],
+                     alpha=0.5, linewidth=0)
+    # ax1.scatter3D(spot3Dbg['X'], spot3Dbg['Y'], spot3Dbg['Z'], c='grey', label='background')
+    ax1.set_xticks(ticks=range(w))
+    ax1.set_yticks(ticks=range(h))
+    ax1.set_zticks(ticks=range(len(cell_types)))
+    ax1.axis('off')
+    ax1.legend(loc='lower left', ncol=3, frameon=False,
+               bbox_to_anchor=(0.1, -0.05),
+               handletextpad=0.3,
+               borderpad=0.5,
+               borderaxespad=1.05,
+               columnspacing=0.7,
+               handlelength=0.7,
+               fontsize=14)
+    fig.savefig(figname, dpi=400)
+
+
+def Show_best_group(sptFile, cell_type, fscore, domain, mtd_chain: str, figname=None, save=True):
     info = sptInfo(sptFile)
     platform = info.configs['platform'][0]
-    print("platform:{0}".format(platform))
     if platform != 'ST':
         platform = '10X_Visium'
     mtds = mtd_chain.split('+')
@@ -239,10 +490,12 @@ def Show_best_group(sptFile, cell_type, fscore, domain, mtd_chain: str, figname)
     abd_name = dct_mtd + '_' + dcv_mtd + '_' + clu_mtd + '_' + cell_type
     adata = Load_spt_to_AnnData(sptFile, h5data=dct_mtd, loadDeconv=True, platform=platform)
     adata.obs[abd_name] = adata.obsm[dcv_mtd][cell_type]
-    Show_matched_domains(adata, clu_mtd, dcv_mtd, domain, cell_type, fscore, figname, platform=platform)
+    fig = Show_matched_domains(adata, clu_mtd, dcv_mtd, domain, cell_type, fscore, platform=platform)
+    if save:
+        fig.savefig(figname, dpi=400)
     print("find {0} locate in {1} using methods chain:"
-                 "\n{2}, F-score={3}".format(cell_type, str(domain), abd_name, fscore))
-
+          "\n{2}, F-score={3}".format(cell_type, str(domain), abd_name, fscore))
+    return fig
 
 
 def Show_bash_best_group(sptFile, folder, Best_dict=None):
@@ -268,12 +521,59 @@ def Show_bash_best_group(sptFile, folder, Best_dict=None):
         else:
             Best_item = Best_df.loc[cell_type, :]
             domain = Best_item['domain']
-            fscore =Best_item['F1-score']
+            fscore = Best_item['F1-score']
             dct_mtd, dcv_mtd, clu_mtd = Best_item['dct'], Best_item['dcv'], Best_item['clu']
         mtd_chain = dct_mtd + '+' + dcv_mtd + '+' + clu_mtd
         fig_cell_type = cell_type.replace('/', '.')  # illegal `/` in file path
         figname = folder + "/" + fig_cell_type + ".svg"
-        Show_best_group(sptFile, cell_type, fscore, domain, mtd_chain, figname)
+        fig = Show_best_group(sptFile, cell_type, fscore, domain, mtd_chain, figname, save=True)
+
+
+def Show_row_best_group(sptFile, folder, cell_types):
+    if not os.path.isdir(folder):
+        os.makedirs(folder)
+    sptinfo = sptInfo(sptFile)
+    platform = sptinfo.configs['platform'][0]
+    if platform != 'ST':
+        platform = '10X_Visium'
+    Best_df = sptinfo.get_map_chains()
+    nct = len(cell_types)
+    fig, axs = plt.subplots(1, nct, figsize=(3 * nct, 4))
+    plt.subplots_adjust(wspace=0.05, hspace=0)
+    for i in range(nct):
+        cell_type = cell_types[i]
+        Best_item = Best_df.loc[cell_type, :]
+        domain = Best_item['domain']
+        f1score = Best_item['F1-score']
+        dct_mtd, dcv_mtd, clu_mtd = Best_item['dct'], Best_item['dcv'], Best_item['clu']
+        adata = Load_spt_to_AnnData(sptFile, h5data=dct_mtd, loadDeconv=True, platform=platform)
+        Ax_prop_domains(adata, clu_mtd, dcv_mtd, domain, cell_type, axs[i],
+                        title=cell_type, f1score=f1score, platform=platform)
+    figname = folder + "/domains1.svg"
+    fig.savefig(figname, dpi=400)
+
+
+def Show_row_marker_genes(sptFile, folder, genes, cell_types):
+    if not os.path.isdir(folder):
+        os.makedirs(folder)
+    sptinfo = sptInfo(sptFile)
+    Best_df = sptinfo.get_map_chains()
+    platform = sptinfo.configs['platform'][0]
+    if platform != 'ST':
+        platform = '10X_Visium'
+    ngenes = len(genes)
+    fig, axs = plt.subplots(1, ngenes, figsize=(3 * ngenes, 4))
+    plt.subplots_adjust(wspace=0.05, hspace=0)
+    for i in range(ngenes):
+        gene = genes[i]
+        cell_type = cell_types[i]
+        Best_item = Best_df.loc[cell_type, :]
+        dct_mtd, dcv_mtd, clu_mtd = Best_item['dct'], Best_item['dcv'], Best_item['clu']
+        adata_sp = Load_spt_to_AnnData(sptFile, h5data=dct_mtd, platform=platform)
+        sc.pp.log1p(adata_sp)
+        Ax_expr_spgenes(adata_sp, gene, ax=axs[i], platform=platform, title=gene)
+    figname = folder + "/genes.svg"
+    fig.savefig(figname, dpi=400)
 
 
 def spTRS_self_correlation(sptFile, alpha=1, method='pearsonr'):
@@ -413,6 +713,8 @@ def Generate_New_idents(sptFile, Best_dict):
 def Gen_venn(sptFile, folder, Best_dict=None, show_genes=2, cell_filter=None):
     sptinfo = sptInfo(sptFile)
     platform = sptinfo.configs['platform'][0]
+    if platform != 'ST':
+        platform = '10X_Visium'
     Best_df = sptinfo.get_map_chains()
     cell_types = []
     if Best_dict is not None:
@@ -452,7 +754,6 @@ def Gen_venn(sptFile, folder, Best_dict=None, show_genes=2, cell_filter=None):
             figname = folder + '/' + marker + "_" + cell_type.replace('/', '|') + "_expr.eps"
             Show_matched_genes(adata_sp=adata_sp,
                                adata_sc=adata_sc0,
-                               cell_type=cell_type,
                                genes=marker,
                                platform=platform,
                                figname=figname)
@@ -488,7 +789,7 @@ def Gen_venn2(adata_sp, adata_sc, domain, clu_mtd, cell_type, folder, pval=10e-6
     inter_genes = inter_genes.sort_values(by=['scores'], ascending=False)
     bg_genes = Gen_Background_genes(adata_sp, adata_sc)
     mia = MIA_analysis(len(inter_genes), len(bg_genes), len(sc_gene), len(sp_gene))
-    axs.annotate('MIA:'.format(mia),
+    axs.annotate('MIA: %.3f' % mia,
                  color='black',
                  xy=f.get_label_by_id('11').get_position() + np.array([0, 0.05]),
                  xytext=(20, 100),
