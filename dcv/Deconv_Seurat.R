@@ -5,7 +5,6 @@ source("sptranr/R/_scRNA-seq.R")
 # decoding params
 params <- fromJSON(file = "params.json")
 sptFile <- params$sptFile
-params <- h5read(sptFile, "configs")
 imgdir <- paste0(params$dataPath, "/spatial")
 platform <- params$platform
 if(is.null(platform)){

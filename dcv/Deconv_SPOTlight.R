@@ -10,11 +10,15 @@ source("sptranr/R/_scRNA-seq.R")
 # decoding params
 params <- fromJSON(file = "params.json")
 sptFile <- params$sptFile
-params <- h5read(sptFile, "configs")
 platform <- params$platform
 if(is.null(platform)){
   platform <- "10X_Visium"  # default using 10X_Visium
 }
+
+# read References
+sce <- Load_sptsc_to_SCE(sptFile, "scRNA_seq")
+rownames(sce) <- toupper(rownames(sce))
+sce <- Analysis_scRNA_seq(sce)
 
 for(decont in params$Decontamination){
   h5data <- Create_spt_h5data(decont)
@@ -22,11 +26,6 @@ for(decont in params$Decontamination){
     message("SpotClean only Support 10X Visium data, skip it.")
     next
   }
-
-  # read References
-  sce <- Load_sptsc_to_SCE(sptFile, "scRNA_seq")
-  rownames(sce) <- toupper(rownames(sce))
-  sce <- Analysis_scRNA_seq(sce)
   # sce@metadata[['HVGs']] <- rownames(sce)
 
   # Load the spatial transcriptome data to SE: SpatialExperiment

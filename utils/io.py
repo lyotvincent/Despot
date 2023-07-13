@@ -1,15 +1,34 @@
 from utils.common import *
 
+
 # summary of a sptFile
 class sptInfo:
     def __init__(self, sptFile):
         self.sptFile = sptFile
-        # add names
+        # add names and coordinates
         self.name = None
         with h5.File(sptFile, 'r') as f:
             mat = list(f.keys())
             if 'name' in mat:
                 self.name = bytes2str(f['name'][:])[0]
+            if 'sptimages' in mat:
+                coord = f['sptimages']["coordinates"]
+                self.coords = pd.DataFrame({'in_tissue': np.array(coord["tissue"][:], dtype='int32'),
+                                'array_row': np.array(coord["row"][:], dtype='int32'),
+                                'array_col': np.array(coord["col"][:], dtype='int32'),
+                                'image_row': np.array(coord["imagerow"][:], dtype='int32'),
+                                'image_col': np.array(coord["imagecol"][:], dtype='int32')},
+                               index=bytes2str(coord["index"][:]))
+                self.coords.sort_index()
+                if 'scalefactors' in f['sptimages']:
+                    sf = f['sptimages']["scalefactors"]
+                    if 'spot' in sf and 'lowres' in sf:
+                        self.scalefactors = {'spot_diameter_fullres': sf['spot'][0],
+                                     'tissue_hires_scalef': sf['hires'][0],
+                                     'fiducial_diameter_fullres': sf['fiducial'][0],
+                                     'tissue_lowres_scalef': sf['lowres'][0] }
+
+
 
         # add origin matrix
         self.spmatrixs = {}
@@ -25,14 +44,29 @@ class sptInfo:
         if 'scRNA_seq' in mat:
             self.scmatrixs.append('scRNA_seq')
 
-        # for each spmatrix, add clu_methods and dcv_methods
+        # for each spmatrix, add clu_methods and dcv_methods, load idents and proportions
         with h5.File(self.sptFile, 'r') as f:
+            coord = f["sptimages"]["coordinates"]
             for keys in self.spmatrixs.keys():
                 h5mat = f[keys]
+                idents = h5mat['idents']
+                obs_names = bytes2str(h5mat['barcodes'][:])
                 clu_mtds = list(h5mat['idents'].keys())
                 dcv_mtds = list(h5mat['deconv'].keys())
                 self.spmatrixs[keys]['cluster_methods'] = clu_mtds
                 self.spmatrixs[keys]['deconvolution_methods'] = dcv_mtds
+
+                # load idents
+                obs = pd.DataFrame(index=bytes2str(coord["index"][:]))
+                for ident in idents.keys():
+                    # change idents' datatype if they are numeric
+                    idf = np.array(idents[ident][:], dtype='str')
+                    if str.isnumeric(idf[0]):
+                        idf = np.array(idents[ident][:], dtype=int)
+                    # change idents to category
+                    idf = pd.Series(idf, index=bytes2str(h5mat['barcodes'][:]), dtype='category')
+                    obs[ident] = idf.loc[obs_names]
+                self.spmatrixs[keys]['idents'] = obs
 
         # add map_chain if available
         self.map_chains = pd.DataFrame()
@@ -61,10 +95,15 @@ class sptInfo:
                         item = list(item)
                     self.configs[k] = item
 
-
     def get_spmatrix(self):
         return list(self.spmatrixs.keys())
 
+    def get_platform(self):
+        if type(self.configs['platform']) == list:
+            platform = self.configs['platform'][0]
+        else:
+            platform = self.configs['platform']
+        return platform
     def get_clu_methods(self, spmat: str):
         if spmat == 'matrix':
             return self.spmatrixs[spmat]['cluster_methods']
@@ -92,6 +131,38 @@ class sptInfo:
             return self.map_chains.loc[cell_type, :]
         else:
             return self.map_chains
+
+    def get_idents(self, spmat: str):
+        return self.spmatrixs[spmat]['idents']
+
+    def get_coords(self, filter=True):
+        if filter:
+            coords = self.coords[self.coords['in_tissue'] == 1]
+        else:
+            coords = self.coords
+        return coords
+
+    def get_sf(self, solution='low'):
+        if solution == 'low':
+            return float(self.scalefactors['tissue_lowres_scalef'])
+        elif solution == 'high':
+            return float(self.scalefactors['tissue_hires_scalef'])
+        elif solution == 'diameter':
+            return float(self.scalefactors['spot_diameter_fullres'])
+        else:
+            return 0
+
+    def get_imgPath(self, solution='low'):
+        dataPath = self.configs['dataPath']
+        imgPath = self.configs['imgPath']
+        if type(dataPath) == list:
+            dataPath = dataPath[0]
+        if type(imgPath) == list:
+            imgPath = imgPath[0]
+        if solution == 'low':
+            return str(dataPath) + "/" + str(imgPath) + "/tissue_lowres_image.png"
+        else:
+            return str(dataPath) + "/" + str(imgPath) + "/tissue_hires_image.png"
 
 
 # save configs to sptFile
@@ -121,6 +192,7 @@ def Save_spt_from_configs(sptFile, cfg_file="params.json", items: dict = None, c
                 if change_cfg:
                     items = Load_json_configs(cfg_file)
                 else:
+                    print('no changes in configs.')
                     return 0
             for k in items.keys():
                 if k in f["configs"]:
@@ -177,9 +249,11 @@ def Load_json_configs(path: str, encoding: str = 'utf-8'):
 
 # convert bytes to str in array
 def bytes2str(arr):
-    arr = np.array(list(map(lambda x: str(x, encoding='utf8'), arr)))
+    if type(arr[0]) == bytes:
+        arr = np.array(list(map(lambda x: str(x, encoding='utf-8'), arr)))
+    else:
+        arr = np.array(list(map(lambda x: str(x), arr)))
     return arr
-
 
 # convert str to bytes in array
 def str2bytes(arr):
@@ -259,6 +333,7 @@ def Load_spt_to_AnnData(sptFile: str,
         # create var
         if data0 != "matrix":  # which means Decont data exists
             h5fea = bytes2str(h5dat['features']['name'][:])
+            h5fea = [fea.upper() for fea in h5fea]
             var = pd.DataFrame({'gene_name': h5fea}, index=h5fea)
         else:
             # var = pd.DataFrame({'gene_ids': np.array(features["id"][:], dtype='str'),
@@ -267,6 +342,7 @@ def Load_spt_to_AnnData(sptFile: str,
             #                     'gene_name': np.array(features['name'][:], dtype='str')})
             # var.index = var['gene_ids']
             h5fea = bytes2str(h5dat['features']['name'][:])
+            h5fea = [fea.upper() for fea in h5fea]
             var = pd.DataFrame({'gene_name': h5fea}, index=h5fea)
         name = str(h5_obj["name"][0], encoding='utf8')
 

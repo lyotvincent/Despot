@@ -183,13 +183,13 @@ Save_scRNAseq_to_spt <- function(sptFile, sce){
 
   # save original names
   Create_spt_array1d(sptFile,
-                     arr = rownames(mat),
+                     arr = toupper(rownames(mat)),
                      sptloc = "scRNA_seq/features/name",
                      mode = 'character')
 
   # save HVGs
   Create_spt_array1d(sptFile,
-                     arr = sce@metadata$HVGs,
+                     arr = toupper(sce@metadata$HVGs),
                      sptloc = "scRNA_seq/features/HVGs",
                      mode = 'character')
 

@@ -4,6 +4,22 @@ library(png)
 library(rjson)
 library(data.table)
 
+# make gene names or cell names unique
+Make_unique <- function(arr){
+  dep_arr <- list()
+  dep_idx <- which(duplicated(arr))
+  for(idx in dep_idx){
+    item <- arr[idx]
+    if(!(item %in% attr(dep_arr, 'names'))){
+      dep_arr[item] <- 1
+    }
+    count <- dep_arr[[item]]
+    arr[idx] <- paste0(arr[idx],".", count)
+    dep_arr[[item]] <- dep_arr[[item]] + 1
+  }
+  return(arr)
+}
+
 # Initialize a h5spt file at the beginning of pipline
 Init_spt <- function(sptFile){
   # create a temp file

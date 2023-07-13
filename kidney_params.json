@@ -4,6 +4,7 @@
   "dataPath": "data/Visium_FFPE_Mouse_Kidney",
   "imgPath": "spatial",
   "tempdir": "h5ads",
+  "platform": "10X_Visium",
   "TabulaType": "Droplet",
   "TabulaData": "Kidney",
   "dataSpices": "Mouse",

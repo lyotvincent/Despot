@@ -10,7 +10,6 @@ source("sptranr/R/_scRNA-seq.R")
 # decoding params
 params <- fromJSON(file = "params.json")
 sptFile <- params$sptFile
-params <- h5read(sptFile, "configs")
 platform <- params$platform
 if(is.null(platform)){
   platform <- "10X_Visium"  # default using 10X_Visium

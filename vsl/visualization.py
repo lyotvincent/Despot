@@ -1,3 +1,5 @@
+import pandas as pd
+
 from utils.io import *
 from utils.preprocess import *
 import seaborn as sns
@@ -5,6 +7,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from vsl.palette import Set_palette
 from vsl.boundary import boundary_extract, show_edge
+from PIL import Image
 
 
 # report the sptFile, including brief information, umap graphs, deconvolution composition
@@ -55,13 +58,14 @@ def Show_Origin_histology(sptFile, figname, hires=True, key=None):
     fig.savefig(figname, dpi=400)
 
 
-def Ax_expr_spgenes(adata_sp, genes, ax, platform='ST', title=None):
+def Ax_expr_spgenes(adata_sp, genes, ax, platform='ST', title=None, cmap='coolwarm'):
     plt.rcParams["font.sans-serif"] = ["Arial"]
     plt.rcParams["axes.unicode_minus"] = False
+    plt.rcParams['font.size'] = 16
     expr = adata_sp.to_df().loc[:, genes]
 
     if platform == 'ST':
-        ax.scatter(x=adata_sp.obs['array_row'], y=adata_sp.obs['array_col'], c=expr, cmap='coolwarm')
+        ax.scatter(x=adata_sp.obs['array_row'], y=adata_sp.obs['array_col'], c=expr, cmap=cmap)
         ax.set_xticks(ticks=[])
         ax.set_yticks(ticks=[])
         ax.spines.top.set_visible(False)
@@ -82,7 +86,7 @@ def Ax_expr_spgenes(adata_sp, genes, ax, platform='ST', title=None):
         y -= ymin
         ax.imshow(adata_sp.uns['spatial'][img_key]['images']['lowres'][ymin:ymax, xmin:xmax], alpha=0.8)
         ax.scatter(x=x, y=y, c=expr,
-                       cmap='coolwarm', marker='.', s=10)
+                       cmap=cmap, marker='.', s=10)
         ax.spines.top.set_visible(False)
         ax.spines.bottom.set_visible(False)
         ax.spines.left.set_visible(False)
@@ -123,10 +127,10 @@ def Show_row_spgenes(adata_sp, genes, figname, platform='ST'):
     fig.savefig(figname, dpi=400)
 
 
-def Ax_prop_domains(adata, clu_mtd, dcv_mtd, domains, cell_type, ax, title, f1score, platform='ST'):
+def Ax_prop_domains(adata, clu_mtd, dcv_mtd, domains, cell_type, ax, title, f1score, platform='ST', imgPath=None, cmap='cividis', ap=100):
     plt.rcParams["font.sans-serif"] = ["Arial"]
     plt.rcParams["axes.unicode_minus"] = False
-    plt.rcParams['font.size'] = 14
+    plt.rcParams['font.size'] = 16
     # select domain
     selection = np.zeros_like(adata.obs[clu_mtd])
     for d in domains:
@@ -142,17 +146,49 @@ def Ax_prop_domains(adata, clu_mtd, dcv_mtd, domains, cell_type, ax, title, f1sc
         sf = adata.uns['spatial'][img_key]['scalefactors']['tissue_lowres_scalef']
 
         # show img
-        x,y = adata.obs['image_col']*sf, adata.obs['image_row']*sf
+        x,y = (adata.obs['image_col'])*sf, adata.obs['image_row']*sf
         xmin, xmax = int(np.min(x) - 5), int(np.max(x) + 5)
         ymin, ymax = int(np.min(y) - 5), int(np.max(y) + 5)
         x -= xmin
         y -= ymin
         pts = np.array([x[selection], y[selection]]).T
-        alpha = 40 / np.max(pts)
+        alpha = ap / np.max(pts)
         edges, centers = boundary_extract(pts, alpha, err=10e-5)
         ax.imshow(adata.uns['spatial'][img_key]['images']['lowres'][ymin:ymax, xmin:xmax], alpha=0.8)
         ax.scatter(x=x, y=y, c=prop,
-                       cmap='cividis', marker='.', s=10)
+                       cmap=cmap, marker='.', s=10)
+        show_edge(edges, ax, label='F1score: %.3f' % f1score, linewidth=1.5)
+        ax.set_xticks(ticks=[])
+        ax.set_yticks(ticks=[])
+        ax.set_xlabel('')
+        ax.set_ylabel('')
+        ax.spines.top.set_visible(False)
+        ax.spines.bottom.set_visible(False)
+        ax.spines.left.set_visible(False)
+        ax.spines.right.set_visible(False)
+        ax.legend(loc='lower right',
+                      handletextpad=0.3,
+                      borderpad=0.5,
+                      borderaxespad=1.05,
+                      columnspacing=0.7,
+                      handlelength=0.7,
+                      fontsize=12)
+        ax.set_title(title)
+    elif platform == 'ST':
+        adata.obs[cell_type] = prop
+        if imgPath is not None:
+            img = Image.open(imgPath)
+            sf = img.height / (np.max(adata.obs['image_col']) + 1.5 - np.min(adata.obs['image_col']))
+            print(sf)
+        else:
+            sf = 1
+        x, y = (adata.obs['image_col'])*sf, (-adata.obs['image_row'])*sf
+        pts = np.array([x[selection], y[selection]]).T
+        alpha = 15 / np.max(pts)
+        edges, centers = boundary_extract(pts, alpha, err=10e-5)
+        # ax.imshow(np.array(img), alpha=0.8)
+        ax.scatter(x=x, y=y, c=prop,
+                       cmap='cividis', marker='o', s=25)
         show_edge(edges, ax, label='F1score: %.3f' % f1score, linewidth=1.5)
         ax.set_xticks(ticks=[])
         ax.set_yticks(ticks=[])
@@ -326,7 +362,7 @@ def Show_prop_domains(adata, clu_mtd, dcv_mtd, domains, cell_type, f1score, plat
     return fig
 
 
-def Show_Spatial(sptFile, figname, key, h5data='matrix', do_cluster=True, platform="10X_Visium"):
+def Show_Spatial(sptFile, figname, key, h5data='matrix', do_cluster=True, platform="10X_Visium", title=''):
     adata = Load_spt_to_AnnData(sptFile, h5data, platform=platform)
     fig, axs = plt.subplots(1, 1, figsize=(4, 3), constrained_layout=True)
     if do_cluster:
@@ -335,6 +371,9 @@ def Show_Spatial(sptFile, figname, key, h5data='matrix', do_cluster=True, platfo
         from clu.Cluster_leiden import Spatial_Cluster_Analysis
         adata = Spatial_Cluster_Analysis(adata)
     sc.pl.spatial(adata, ax=axs, color=key, spot_size=1)
+    axs.set_title(title)
+    axs.set_xlabel('')
+    axs.set_ylabel('')
     fig.savefig(figname, dpi=400)
 
 
@@ -350,19 +389,25 @@ def Show_Violin(sptFile, figname, key, h5data='matrix'):
     fig.savefig(figname, dpi=400)
 
 
-def Show_Umap(sptFile, figname, h5data='matrix', is_spatial=True, key='ground_truth', title=None, do_cluster=True):
+def Show_Umap(sptFile, figname, h5data='matrix', is_spatial=True, key='ground_truth', title=None, do_cluster=True, figsize=(6,5)):
     if is_spatial:
         adata = Load_spt_to_AnnData(sptFile, h5data)
     else:
         adata = Load_spt_sc_to_AnnData(sptFile, h5data)
     if do_cluster:
-        adata = Remove_mito_genes(adata)
-        adata = Filter_genes(adata)
+        # adata = Remove_mito_genes(adata)
+        # adata = Filter_genes(adata)
         from clu.Cluster_leiden import Spatial_Cluster_Analysis
         adata = Spatial_Cluster_Analysis(adata)
-    fig, axs = plt.subplots(1, 1, figsize=(9, 4), constrained_layout=True)
-    sc.pl.umap(adata, ax=axs, color=key, show=False, palette=sc.pl.palettes.default_20, size=12)
+    fig, axs = plt.subplots(1, 1, figsize=figsize, constrained_layout=True)
+    sc.pl.umap(adata, ax=axs, color=key, show=False, size=12)
     axs.set_title(title)
+    axs.legend(loc='lower left', frameon=False, bbox_to_anchor=(1,0), fontsize=12,
+                handletextpad=0.3,
+              borderpad=0.5,
+              borderaxespad=1.05,
+              columnspacing=0.7,
+              handlelength=0.7)
     fig.savefig(figname, dpi=400)
 
 
@@ -401,19 +446,99 @@ def Show_Domain_and_Composition(sptFile, cell_type):
     fig.show()
 
 
-def Show_bar_composition(sptFile, h5data, method="Cell2Location", subtype="Leiden"):
+def Show_bar_composition(sptFile, h5data, method="Cell2Location", subtype="leiden"):
     info = sptInfo(sptFile)
 
     dcv_mtds = info.get_dcv_methods(h5data)
-    adata = Load_spt_to_AnnData(sptFile, h5data)
+    adata = Load_spt_to_AnnData(sptFile, h5data, loadDeconv=True)
     adata = adata[adata.obs['BayesSpace'] == 6]
     adata = Remove_mito_genes(adata)
     adata = Filter_genes(adata)
+    adata = Remove_RPMTgenes(adata)
     from clu.Cluster_leiden import Spatial_Cluster_Analysis
     adata = Spatial_Cluster_Analysis(adata)
     import scipy.stats as stats
     adata = adata[adata.obs['SpaGCN'] != 0].copy()
     adata.obs['SpaGCN'][adata.obs['image_col'] < 4000] = 1
+    adata.obs['domains'] = adata.obs['SpaGCN'].apply(lambda x: 'Invasive Carcinoma' if x == 1 else 'DCIS')
+    sc.tl.rank_genes_groups(adata, groupby="domains",
+                            method='wilcoxon',
+                            corr_method='benjamini-hochberg',
+                            groups=['Invasive Carcinoma'], reference='DCIS')
+    gene_df = pd.DataFrame(adata.uns['rank_genes_groups']['names'])
+    data = pd.DataFrame({"names": gene_df.iloc[:, 0].apply(str.upper),
+                         "scores": pd.DataFrame(adata.uns['rank_genes_groups']['scores']).iloc[:, 0],
+                         "pvals": pd.DataFrame(adata.uns['rank_genes_groups']['pvals']).iloc[:, 0],
+                         "padj": pd.DataFrame(adata.uns['rank_genes_groups']['pvals_adj']).iloc[:, 0],
+                         "log2FoldChange": pd.DataFrame(adata.uns['rank_genes_groups']['logfoldchanges']).iloc[:, 0], })
+    data = data[data.log2FoldChange < 6]
+    data.loc[(data.log2FoldChange > 1) & (data.pvals < 0.05), 'type'] = 'up'
+    data.loc[(data.log2FoldChange < -1) & (data.pvals < 0.05), 'type'] = 'down'
+    data.loc[(abs(data.log2FoldChange) <= 1) | (data.pvals >= 0.05), 'type'] = 'nosig'
+    data['-logpadj'] = -data.padj.apply(math.log10)
+    data.loc[data['-logpadj'] < 0.5, 'type'] = 'nosig'
+    data[['log2FoldChange', 'padj', 'type', '-logpadj']].head()
+    colors = ["#01c5c4", "#686d76", "#ff414d"]
+    sns.set_palette(sns.color_palette(colors))
+    x_threshold = 0.5
+    y_threshold = 0.5
+
+    x_min = -5
+    x_max = 5
+    y_min = 0
+    y_max = 6
+
+    # draw volcano
+    fig, ax = plt.subplots(1, 1, figsize=(5, 5), constrained_layout=True)
+    sns.scatterplot(x='log2FoldChange', y='-logpadj', data=data,
+                    hue='type',  # 颜色映射
+                    edgecolor=None,
+                    s=6,  # 点大小
+                    ax=ax)
+    # names = ['PHLDA2', 'MEST', 'KRT5', 'KRT19', 'TGFA', 'EPCAM', 'CALML5', 'MGP', 'CCND1', 'KRT16',
+    #          "PTGDS", 'CCL19', 'CD3E', 'CXCR4', "LTB", "ACAP1", "TSC22D3", "CD79A"]
+    data.index = data['names']
+    data_up = data.iloc[:20, :]
+    data_down = data.iloc[-20:, :]
+    names = data_up.index
+    ax.scatter(data_up['log2FoldChange'], data_up['-logpadj'],
+               edgecolors='black',
+               facecolors='none',
+               alpha=0.7,
+               s=10,
+               linewidths=0.5)
+    for name in names:
+        ax.annotate(name,  # context
+                    xy=(data_up['log2FoldChange'][name], data_up['-logpadj'][name]),  # location of annotation
+                    xytext=(2, 1),
+                    textcoords='offset points',
+                    fontsize=10)
+
+    names = data_down.index
+    ax.scatter(data_down['log2FoldChange'], data_down['-logpadj'],
+               edgecolors='black',
+               facecolors='none',
+               alpha=0.7,
+               s=10,
+               linewidths=0.5)
+    for name in names:
+        ax.annotate(name,  # context
+                    xy=(data_down['log2FoldChange'][name], data_down['-logpadj'][name]),  # location of annotation
+                    xytext=(-15, 1),
+                    textcoords='offset points',
+                    fontsize=10)
+    # labels
+    ax.set(xlim=(x_min, x_max), ylim=(y_min, y_max))
+    ax.set_xlabel("log2FC")
+    ax.set_ylabel("-log10(padj)")
+    ax.vlines(-x_threshold, y_min, y_max, color='dimgrey', linestyles='dashed', linewidth=1)
+    ax.vlines(x_threshold, y_min, y_max, color='dimgrey', linestyles='dashed', linewidth=1)
+    ax.hlines(y_threshold, x_min, x_max, color='dimgrey', linestyles='dashed', linewidth=1)
+    # 移动图例位置
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+
+
     df1 = pd.DataFrame(adata.obsm[method])
     df = pd.concat([df1, adata.obs[subtype]], axis=1)
     invasive = df[df["SpaGCN"] == 1]
@@ -422,37 +547,181 @@ def Show_bar_composition(sptFile, h5data, method="Cell2Location", subtype="Leide
         print(ct, stats.ttest_ind(invasive[ct], dcis[ct]))
 
     # important genes
-    focus_genes = ["ENTPD1", 'PDCD1', "CD200", "IL7R", "HAVCR2", "CXCL13", "TIGIT", "TCF7", "ZNF683", "GZMK", "GZMA",
-                   "LAG3"]
-    df = pd.concat([adata.obs["SpaGCN"], pd.DataFrame(adata[:, focus_genes].X.toarray(),
-                                                      columns=focus_genes, index=adata.obs_names)], axis=1)
-    fig, axs = plt.subplots(1, 1, figsize=(5.3, 4))
-    sns.violinplot(x="SpaGCN", y='ENTPD1', data=df, ax=axs, width=0.7, inner=None,
-                   palette=['#82a7a9', '#c86c86', '#b3999b'])
-    sns.swarmplot(x="SpaGCN", y='ENTPD1', data=df, ax=axs, color='#404040')
-    axs.set_xticks(ticks=[0, 1], labels=['invasive cancer', 'DCIS'], fontname="sans-serif", fontsize=12)
-    axs.set_yticks(ticks=list(range(2)), fontname="sans-serif", fontsize=14)
-    axs.set_ylabel(ylabel="Enrichment score", fontname="sans-serif", fontsize=14)
-    axs.set_xlabel(xlabel="", fontname="sans-serif", fontsize=14)
-    fig.show()
+    # focus_genes = ["ENTPD1", 'PDCD1', "CD200", "IL7R", "HAVCR2", "CXCL13", "TIGIT", "TCF7", "ZNF683", "GZMK", "GZMA",
+    #                "LAG3"]
+    # focus_genes = ['ENTPD1', 'PDCD1', 'CD200']
+    # df = pd.concat([adata.obs["SpaGCN"], pd.DataFrame(adata[:, focus_genes].X.toarray(),
+    #                                                   columns=focus_genes, index=adata.obs_names)], axis=1)
+    # fig, axs = plt.subplots(1, 1, figsize=(5.3, 4))
+    # sns.boxplot(x="SpaGCN", y='ENTPD1', data=df, ax=axs, width=0.7, inner=None,
+    #                palette=['#82a7a9', '#c86c86', '#b3999b'])
+    # sns.swarmplot(x="SpaGCN", y='ENTPD1', data=df, ax=axs, color='#404040')
+    # axs.set_xticks(ticks=[0, 1], labels=['invasive cancer', 'DCIS'], fontname="sans-serif", fontsize=12)
+    # axs.set_yticks(ticks=list(range(2)), fontname="sans-serif", fontsize=14)
+    # axs.set_ylabel(ylabel="Enrichment score", fontname="sans-serif", fontsize=14)
+    # axs.set_xlabel(xlabel="", fontname="sans-serif", fontsize=14)
+    # fig.show()
+
+    def get_cell_prop(method, cell_type, subtype):
+        df = pd.DataFrame(adata.obsm[method], copy=True)
+        if method == 'Cell2Location':
+            df = df.div(df.sum(axis=1), axis='rows')
+        cell_prop = df[cell_type].copy()
+        df0 = pd.DataFrame()
+        df0['cell_prop'] = cell_prop
+        df0['cell_type'] = cell_type
+        df0['domains'] = adata.obs[subtype].apply(lambda x:'Invasive Carcinoma' if x==1 else 'DCIS')
+        return df0
+
+    def get_gene_expr(focus_genes, subtype):
+        df = pd.DataFrame(adata[:, focus_genes].X.toarray(),
+                          columns=focus_genes, index=adata.obs_names)
+        df_all = pd.DataFrame()
+        for gene in focus_genes:
+            df0 = pd.DataFrame()
+            df0['cell_prop'] = df[gene]
+            df0['cell_type'] = gene
+            df0['domains'] = adata.obs[subtype].apply(lambda x: 'Invasive Carcinoma' if x == 1 else 'DCIS')
+            df_all = pd.concat([df_all, df0])
+        return df_all
+
+    def comp_sig(df, cell_type):
+        sig_type=[]
+        invasive = df[df['domains'] == 'Invasive Carcinoma']
+        dcis = df[df['domains'] == 'DCIS']
+        if type(cell_type) == str:
+            cell_type = [cell_type]
+        from tqdm import tqdm
+        for x,ct in tqdm(enumerate(cell_type)):
+            data1 = invasive['cell_prop'][invasive['cell_type'] == ct]
+            data2 = dcis['cell_prop'][dcis['cell_type'] == ct]
+            stat, p = stats.ranksums(data1, data2)
+            if p <= 0.05:
+                sig_type.append(ct)
+        return sig_type
+
+    def comp_plot(df, axs, cell_type, label=None):
+        sig_type=[]
+        from matplotlib.ticker import FuncFormatter
+        sns.boxplot(x='cell_type', y='cell_prop', hue='domains', data=df, ax=axs, width=0.7,
+                    palette=['#82a7a9', '#c86c86', '#b3999b'])
+        invasive = df[df['domains'] == 'Invasive Carcinoma']
+        dcis = df[df['domains'] == 'DCIS']
+        if type(cell_type) == str:
+            cell_type = [cell_type]
+
+        ymax = df['cell_prop'].max()+0.025 * df['cell_prop'].max()
+        for x,ct in enumerate(cell_type):
+            data1 = invasive['cell_prop'][invasive['cell_type'] == ct]
+            data2 = dcis['cell_prop'][dcis['cell_type'] == ct]
+            stat, p = stats.ranksums(data1, data2)
+            axs.plot([x-0.2,x+0.2], [ymax,ymax], color="black", linewidth=1)
+            text_y = ymax
+            if p <= 0.05:
+                sig_type.append(ct)
+            if p > 0.05:
+                pval = 'ns'
+                text_y = ymax+0.03 * ymax
+            elif p > 0.01:
+                pval = '*'
+            elif p > 0.001:
+                pval = '**'
+            elif p > 0.0001:
+                pval = '***'
+            else:
+                pval = '****'
+            axs.text(x, text_y, pval, verticalalignment='center', horizontalalignment='center')
+        # sns.swarmplot(x='cell_type', y='cell_prop', hue='domains', data=df, ax=axs, color='#404040')
+        # axs.set_yticks(ticks=np.arange(0.1, 0.25, 0.05), fontsize=10)
+        if label is not None:
+            axs.set_xticklabels(labels=label)
+        else:
+            axs.set_xticklabels(labels=cell_type)
+        # axs.set_title("terminal Tex (p=0.0042**)", fontname="sans-serif", fontsize=14)
+        axs.set_ylabel(ylabel="subtype proportion", fontname="sans-serif", fontsize=14)
+        axs.set_xlabel(xlabel="", fontname="sans-serif", fontsize=14)
+        axs.spines.top.set_visible(False)
+        axs.spines.right.set_visible(False)
+        axs.spines["left"].set_linewidth(1)
+        axs.spines["bottom"].set_linewidth(1)
+        def ks(x, pos):
+            return '%.2f' % (x)
+        axs.yaxis.set_major_formatter(FuncFormatter(ks))
+        axs.tick_params(axis="y", which="major", length=3, width=1)
+        axs.tick_params(axis="x", which="major", length=3, width=1)
+        axs.get_legend().remove()
+        return sig_type
+
+    df_tex = pd.DataFrame()
+    subtype = 'SpaGCN'
 
     # terminal Tex
-    method = "Cell2Location"
-    df1 = pd.DataFrame(adata.obsm[method])
-    df = pd.concat([df1, adata.obs[subtype]], axis=1)
-    fig, axs = plt.subplots(1, 1, figsize=(5.3, 4))
-    sns.violinplot(x="SpaGCN", y='CD200+ terminal Tex', data=df, ax=axs, width=0.7, inner=None,
-                   palette=['#82a7a9', '#c86c86', '#b3999b'])
-    sns.swarmplot(x="SpaGCN", y='CD200+ terminal Tex', data=df, ax=axs, color='#404040')
-    axs.set_xticks(ticks=[0, 1], labels=['invasive cancer', 'DCIS'], fontname="sans-serif", fontsize=12)
-    axs.set_yticks(ticks=list(range(9)), fontname="sans-serif", fontsize=14)
-    axs.set_title("terminal Tex (p=0.0042**, t-test)", fontname="sans-serif", fontsize=14)
-    axs.set_ylabel(ylabel="Enrichment score", fontname="sans-serif", fontsize=14)
-    axs.set_xlabel(xlabel="", fontname="sans-serif", fontsize=14)
-    fig.savefig("subcluster/terminal Tex.eps", dpi=300)
+    cell_type = 'CD200+ terminal Tex'
+    df0 = get_cell_prop("Cell2Location", cell_type, subtype)
+    df_tex = pd.concat([df_tex, df0])
+
+    # GZMB+ Tex
+    cell_type = 'GZMB+ Tex'
+    df1 = get_cell_prop("Cell2Location", cell_type, subtype)
+    df_tex = pd.concat([df_tex, df1])
+
+    df_tn = pd.DataFrame()
+    # TCF7+ Tn1
+    cell_type = 'TCF7+ Tn1'
+    df0 = get_cell_prop("Cell2Location", cell_type, subtype)
+    df_tn = pd.concat([df_tn, df0])
+
+    # ZNF683+ Tm
+    cell_type = 'ZNF683+ Tm'
+    df1 = get_cell_prop("Cell2Location", cell_type, subtype)
+    df_tn = pd.concat([df_tn, df1])
+
+    from matplotlib.gridspec import GridSpec
+    # fig, axs = plt.subplots(2, 1, figsize=(4, 6), constrained_layout=True)
+    fig = plt.figure(layout="constrained", figsize=(3.7, 6))
+    gs = GridSpec(16, 1, figure=fig)
+
+    axs = [fig.add_subplot(gs[:7, :]),fig.add_subplot(gs[7, :]),
+           fig.add_subplot(gs[8:-1, :]), fig.add_subplot(gs[-1, :])]
+    # Tex
+    cell_types = ['CD200+ terminal Tex', 'GZMB+ Tex']
+    labels = ['terminal Tex', 'GZMB+ Tex']
+    comp_plot(df_tex, axs[0], cell_types, labels)
+    axs[0].set_title("Exhausted T-cells",fontsize=14)
+    axs[1].axis('off')
+    # Tn
+    cell_types = [ 'TCF7+ Tn1', 'ZNF683+ Tm']
+    labels = ['TCF7+ Tn1', 'ZNF683+ Tm']
+    comp_plot(df_tn, axs[2], cell_types, labels)
+    elem, label = axs[2].get_legend_handles_labels()
+    axs[2].set_title("non-Exhausted T-cells",fontsize=14)
+    axs[3].axis('off')
+    fig.legend(elem, label,loc='lower left',
+               frameon=False,
+               bbox_to_anchor=(0.1,-0.03),
+               fontsize=14, ncol=2,
+               handletextpad=0.3,
+               borderpad=0.5,
+               borderaxespad=1.05,
+               columnspacing=0.7,
+               handlelength=0.7)
+    # comp_plot(df2, axs[2], 'GZMK+ Tex')
+    fig.savefig("figures/Fig.5/subtype-diff.svg", dpi=300)
+
+    fig, axs = plt.subplots(1, 1, figsize=(7, 3), constrained_layout=True)
+    # focus_genes = ["ENTPD1", 'PDCD1', "CD200", "IL7R", "HAVCR2", "CXCL13", "TIGIT", "TCF7", "ZNF683", "GZMK", "GZMA",
+    #                "LAG3"]
+    # "IL7R", "CCL3"  sig. genes
+    genes = ["IFI6", "IL7R", 'PDCD10', 'CCR5', 'CD52', 'LAG3']
+    labels = genes
+    df_all = get_gene_expr(genes, subtype)
+    comp_plot(df_all, axs, genes, labels)
+    axs.set_title('DEGs of T-cell domains')
+    axs.set_ylabel('gene expression')
+    fig.savefig("figures/Fig.5/subtype-DEGs2.svg", dpi=300)
 
     # GZMK+ Tex
-    method = "Seurat"
+    method = "StereoScope"
     df1 = pd.DataFrame(adata.obsm[method])
     df = pd.concat([df1, adata.obs[subtype]], axis=1)
     fig, axs = plt.subplots(1, 1, figsize=(5.3, 4))
@@ -460,7 +729,7 @@ def Show_bar_composition(sptFile, h5data, method="Cell2Location", subtype="Leide
                    palette=['#82a7a9', '#c86c86', '#b3999b'])
     sns.swarmplot(x="SpaGCN", y='GZMK+ Tex', data=df, ax=axs, color='#404040')
     axs.set_xticks(ticks=[0, 1], labels=['invasive cancer', 'DCIS'], fontname="sans-serif", fontsize=12)
-    axs.set_title("GZMK+ Tex (p<0.0001****, t-test)", fontname="sans-serif", fontsize=14)
+    axs.set_title("GZMK+ Tex (p<.0001)", fontname="sans-serif", fontsize=14)
     axs.set_xlabel(xlabel="", fontname="sans-serif", fontsize=14)
     axs.set_ylabel(ylabel="cellular composition", fontname="sans-serif", fontsize=14)
     fig.savefig("subcluster/GZMK+ Tex.eps", dpi=300)
@@ -474,7 +743,7 @@ def Show_bar_composition(sptFile, h5data, method="Cell2Location", subtype="Leide
                    palette=['#82a7a9', '#c86c86', '#b3999b'])
     sns.swarmplot(x="SpaGCN", y='TCF7+ Tn1', data=df, ax=axs, color='#404040')
     axs.set_xticks(ticks=[0, 1], labels=['invasive cancer', 'DCIS'], fontname="sans-serif", fontsize=12)
-    axs.set_title("TCF7+ Tn1 (p<0.0001****, t-test)", fontname="sans-serif", fontsize=14)
+    axs.set_title("TCF7+ Tn1 (p<.0001)", fontname="sans-serif", fontsize=14)
     axs.set_ylabel(ylabel="cellular composition", fontname="sans-serif", fontsize=14)
     axs.set_xlabel(xlabel="", fontname="sans-serif", fontsize=14)
     fig.savefig("subcluster/TCF7+ Tn1.eps", dpi=300)
@@ -488,7 +757,7 @@ def Show_bar_composition(sptFile, h5data, method="Cell2Location", subtype="Leide
                    palette=['#82a7a9', '#c86c86', '#b3999b'])
     sns.swarmplot(x="SpaGCN", y='ZNF683+ Tm', data=df, ax=axs, color='#404040')
     axs.set_xticks(ticks=[0, 1], labels=['invasive cancer', 'DCIS'], fontname="sans-serif", fontsize=12)
-    axs.set_title("ZNF683+ Tm (p<0.0001****, t-test)", fontname="sans-serif", fontsize=14)
+    axs.set_title("ZNF683+ Tm (p<.0001)", fontname="sans-serif", fontsize=14)
     axs.set_ylabel(ylabel="cellular composition", fontname="sans-serif", fontsize=14)
     axs.set_xlabel(xlabel="", fontname="sans-serif", fontsize=14)
     fig.savefig("subcluster/ZNF683+ Tm.eps", dpi=300)
@@ -554,29 +823,36 @@ def Show_Heatmap(sptFile, figname, h5data='matrix', title=None):
     fig.savefig(figname, dpi=400)
 
 
+def Show_marker_heatmap(sptFile, figname, h5data='scRNA_seq', title=None,is_spatial=False, ):
+    if is_spatial:
+        adata = Load_spt_to_AnnData(sptFile, h5data)
+    else:
+        adata = Load_spt_sc_to_AnnData(sptFile, h5data)
+        from clu.Cluster_leiden import Spatial_Cluster_Analysis
+        adata = Spatial_Cluster_Analysis(adata)
+        sc.tl.rank_genes_groups(adata, 'annotation', method='wilcoxon')
+        sc.tl.dendrogram(adata, 'annotation')
+        sc.pl.rank_genes_groups_heatmap(adata, n_genes=5, show_gene_labels=True)
+
+
 # downsampling comparison. this function draws a figure to compare cell expression patterns
 # between downsampling and VAE.
-def Show_DS_comparison(sptFile, figname, h5data='scRNA_seq'):
+def Show_DS_comparison(sptFile, figname,figsize=(3.5, 4.5)):
+    plt.rcParams["font.sans-serif"] = ["Arial"]
+    plt.rcParams["axes.unicode_minus"] = False
+    plt.rcParams['font.size'] = 14
     from utils.stereoScope import Easy_Sample
     from clu.Cluster_leiden import Spatial_Cluster_Analysis
     from sklearn import metrics
-    scdata = Load_spt_sc_to_AnnData(sptFile, 'scRNA_seq')
-    scdata0 = Easy_Sample(scdata, 25, None)
-    scdata1 = Load_spt_sc_to_AnnData(sptFile, h5data)
+    scdata0 = Load_spt_sc_to_AnnData(sptFile, 'sc-ref-es')
+    scdata1 = Load_spt_sc_to_AnnData(sptFile, 'sc-ref')
     scdata0 = Spatial_Cluster_Analysis(scdata0)
     scdata1 = Spatial_Cluster_Analysis(scdata1)
-    scdata = Spatial_Cluster_Analysis(scdata)
-    ARI = metrics.adjusted_rand_score(scdata.obs['clusters'], scdata.obs['annotation'])
     ARI0 = metrics.adjusted_rand_score(scdata0.obs['clusters'], scdata0.obs['annotation'])
     ARI1 = metrics.adjusted_rand_score(scdata1.obs['clusters'], scdata1.obs['annotation'])
-    fig, axs = plt.subplots(2, 1, figsize=(3, 4), constrained_layout=True)
+    fig, axs = plt.subplots(2, 1, figsize=figsize, constrained_layout=True)
     sc.pl.umap(scdata0, color='clusters', palette=sc.pl.palettes.default_20, size=14, ax=axs[0], show=False)
-    axs[0].set_title("Easy DownSample ARI={:.2f}".format(ARI0))
+    axs[0].set_title("DS-derived ARI={:.2f}".format(ARI0))
     sc.pl.umap(scdata1, color='clusters', palette=sc.pl.palettes.default_20, size=14, ax=axs[1], show=False)
-    axs[1].set_title("VAE DownSample ARI={:.2f}".format(ARI1))
+    axs[1].set_title("VAE-derived ARI={:.2f}".format(ARI1))
     fig.savefig(figname, dpi=400)
-
-
-def show_coutour(adata, level):
-    pts = np.array(adata.obs[['image_col', 'image_row', 'BayesSpace']])
-    plt.contour(pts, levels=[9])

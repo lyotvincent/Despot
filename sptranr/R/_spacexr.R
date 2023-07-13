@@ -14,7 +14,10 @@ GenerateRef_spacexr <- function(sce){
 }
 
 Deconvolution_spacexr <- function(sr, ref){
-  rctd <- create.RCTD(sr, ref)
+  rctd <- create.RCTD(sr, ref,
+                      max_cores = 7,
+                      UMI_min = 0,
+                      CELL_MIN_INSTANCE=10)
   rctd <- run.RCTD(rctd)
   return(rctd)
 }

@@ -42,6 +42,17 @@ def Filter_genes(adata, min_max_counts=(10, 350000), mt_frac=0.1, min_genes_cell
     return adata
 
 
+def Remove_RPMTgenes(adata):
+    genes = adata.var_names
+    var = adata.var
+    notRP_genes = list(map(lambda x: len(re.findall('RP|MT*', x)) == 0, genes))
+    genes = genes[notRP_genes]
+    X = pd.DataFrame(adata.X.todense(), index=adata.obs_names, columns=adata.var_names)[genes]
+    X = csr_matrix(X)
+    adata0 = ad.AnnData(X, obs = adata.obs, var = var.loc[genes, :], obsm=adata.obsm, varm=adata.varm, uns=adata.uns)
+    return adata0
+
+
 # 用stLearn进行预处理
 def Preprocess_stLearn(stdata):
     import stlearn as st

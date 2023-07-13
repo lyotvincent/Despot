@@ -63,6 +63,7 @@ def suitable_location(adata, perf, clu, beta=1, greedy=2):
     # find suitable location of cell-type in tissue
     cell_type = perf.index
     best_match = pd.DataFrame(columns=['F-score', 'domain'])
+
     for ct in cell_type:
         # get sig. spot
         spots = adata.obs['p_moransI_' + ct]
@@ -81,8 +82,9 @@ def suitable_location(adata, perf, clu, beta=1, greedy=2):
                 for i in domain_list:
                     clu_spot += temp[clu] == i
                 temp0 = temp[clu_spot]
-                precision = len(temp0[temp0['p_moransI_' + ct] == 1]) / len(temp0)
 
+                # calculate the F1-score of proper domains
+                precision = len(temp0[temp0['p_moransI_' + ct] == 1]) / len(temp0)
                 temp1 = temp[temp['p_moransI_' + ct] == 1]
                 clu_spot1 = temp1[clu] == cl
                 for i in domain_list:
@@ -103,20 +105,82 @@ def suitable_location(adata, perf, clu, beta=1, greedy=2):
     best_match.index = cell_type
     return best_match
 
+# # set the single-cell marker background
+# adata_sc = Load_spt_sc_to_AnnData(sptFile)
+# sc.pp.normalize_total(adata_sc)
+# sc.pp.log1p(adata_sc)
+# sc.tl.rank_genes_groups(adata_sc, groupby='annotation', method='wilcoxon')
+#
+# cell_types = np.unique(adata_sc.obs['annotation'])
+# sc_DEgenes = {}
+# for ct in cell_types:
+#     print("calculating {0}".format(ct))
+#     DE_genes = pd.DataFrame(adata_sc.uns['rank_genes_groups']['names'])
+#     DE_genes = pd.DataFrame({"names": DE_genes.loc[:, ct].apply(str.upper),
+#                              "scores": pd.DataFrame(adata_sc.uns['rank_genes_groups']['scores']).loc[:, ct],
+#                              "pvals": pd.DataFrame(adata_sc.uns['rank_genes_groups']['pvals']).loc[:, ct],
+#                              "pvals_adj": pd.DataFrame(adata_sc.uns['rank_genes_groups']['pvals_adj']).loc[:, ct],
+#                              "logfoldchanges": pd.DataFrame(adata_sc.uns['rank_genes_groups']['logfoldchanges']).loc[:, ct]
+#                              })
+#     DE_genes = DE_genes[DE_genes['pvals_adj'] > 0.05]
+#     DE_genes = DE_genes[DE_genes['scores'] > 0]
+#     sc_DEgenes[ct] = list(DE_genes['names'])
 
-def spTRS_findgroups(sptFile, beta=1, greedy=1):
+
+# calculate the sp_DEgenes
+# sc.pp.normalize_total(adata)
+# sc.pp.log1p(adata)
+# for clu in clu_mtds:
+#     sc.tl.rank_genes_groups(adata, groupby=clu, method='wilcoxon')
+#     sp_DEgenes = {}
+#     clu_name = np.unique(adata.obs[clu])
+#     for cl in clu_name:
+#         print("calculating {0}".format(cl))
+#         DE_genes = pd.DataFrame(adata_sc.uns['rank_genes_groups']['names'])
+#         DE_genes = pd.DataFrame({"names": DE_genes.loc[:, cl].apply(str.upper),
+#                                  "scores": pd.DataFrame(adata_sc.uns['rank_genes_groups']['scores']).loc[:, cl],
+#                                  "pvals": pd.DataFrame(adata_sc.uns['rank_genes_groups']['pvals']).loc[:, cl],
+#                                  "pvals_adj": pd.DataFrame(adata_sc.uns['rank_genes_groups']['pvals_adj']).loc[
+#                                               :, cl],
+#                                  "logfoldchanges": pd.DataFrame(
+#                                      adata_sc.uns['rank_genes_groups']['logfoldchanges']).loc[:, cl]
+#                                  })
+#         DE_genes = DE_genes[DE_genes['pvals_adj'] > 0.05]
+#         DE_genes = DE_genes[DE_genes['scores'] > 0]
+#         sp_DEgenes[cl] = list(DE_genes['names'])
+#
+# for ct in cell_types:
+#     for cl in clu_mtds:
+#         sc_genes = sc_DEgenes[ct]
+#         sp_genes = sp_DEgenes[clu]
+#         overlaps = list(set(sc_genes).intersection(set(sp_genes)))
+#         precision = len(overlaps) / len(sc_genes)
+#         recall = len(overlaps) / len(sp_genes)
+#         marker_score = (precision * recall) / (precision + recall)
+
+
+def spTRS_findgroups(sptFile, beta=1, greedy=1, spmat_subset=None, clu_subset=None, dcv_subset=None):
     sptinfo = sptInfo(sptFile)
     platform = sptinfo.configs['platform'][0]
     spmats = sptinfo.get_spmatrix()
+    if spmat_subset:
+        spmats = list(set(spmats).intersection(spmat_subset))
     Best_Fscore = {}
+
     for spmat in spmats:
         adata = Load_spt_to_AnnData(sptFile, spmat, platform=platform, loadDeconv=True)
         clu_mtds = sptinfo.get_clu_methods(spmat)
         dcv_mtds = sptinfo.get_dcv_methods(spmat)
+        if clu_subset:
+            clu_mtds = list(set(clu_mtds).intersection(clu_subset))
+        if dcv_subset:
+            dcv_mtds = list(set(dcv_mtds).intersection(dcv_subset))
         print(clu_mtds)
         print(dcv_mtds)
         for dcv in dcv_mtds:
             for clu in clu_mtds:
+                if clu == 'ground_truth':
+                    continue
                 mtd_name = "{0}+{1}+{2}".format(spmat, dcv, clu)
                 print("Finding Groups in the combination of {0}".format(mtd_name))
                 perf = p_moransI_purity(adata, dcv_mtd=dcv, clu=clu)
@@ -126,8 +190,8 @@ def spTRS_findgroups(sptFile, beta=1, greedy=1):
     return Best_Fscore
 
 
-def spTRS_Find_bestGroup(sptFile, beta=1, greedy=1):
-    Best_Fscore = spTRS_findgroups(sptFile, beta, greedy)
+def spTRS_Find_bestGroup(sptFile, beta=1, greedy=1, spmat_subset=None, clu_subset=None, dcv_subset=None):
+    Best_Fscore = spTRS_findgroups(sptFile, beta, greedy, spmat_subset, clu_subset, dcv_subset)
     Best_dict = {}
 
     # find the best method chains
@@ -189,7 +253,7 @@ def spTRS_Find_bestGroup(sptFile, beta=1, greedy=1):
                 break
         Best_dict[ct] = (f1score, tuple(domain_list), mtd)
 
-    Save_spt_from_BestDict(sptFile, Best_dict)
+    # Save_spt_from_BestDict(sptFile, Best_dict)
     # find markers for each region
     # for cell_type in Best_dict.keys():
     #     region = Best_dict[cell_type][1]
@@ -209,10 +273,15 @@ def Pipline_findgroups(sptFile, pipline, beta=1, greedy=1):
     clu_mtds = sptinfo.get_clu_methods(spmat)
     dcv_mtds = sptinfo.get_dcv_methods(spmat)
     BST = None
+    adata = Load_spt_to_AnnData(sptFile, spmat, platform=platform, loadDeconv=True)
+    if pipline in ['CARD']:  # CARD uses the dominant cell-type as clusters
+        cell_prop = adata.obsm[pipline]
+        dominant_cell = cell_prop.idxmax(axis=1).astype('category')
+        adata.obs[pipline] = dominant_cell
+        clu_mtds = clu_mtds + ['CARD']
     for dcv in dcv_mtds:
         for clu in clu_mtds:
             if clu == pipline and dcv == pipline:
-                adata = Load_spt_to_AnnData(sptFile, spmat, platform=platform, loadDeconv=True)
                 perf = p_moransI_purity(adata, dcv_mtd=dcv, clu=clu)
                 perf = perf[perf['moransI'] > 0.5]
                 BST = suitable_location(adata, perf, clu, beta, greedy)
@@ -251,7 +320,7 @@ def Fscore_Comparison(Best_dict: dict, Best_Fscore):
     for key in Best_dict.keys():
         cell_type.append(key)
         fscore.append(Best_dict[key][0])
-    spTRS_max = pd.DataFrame(data=fscore, index=cell_type, columns=['spTRS']).T
+    spTRS_max = pd.DataFrame(data=fscore, index=cell_type, columns=['Despot']).T
     ground_truth_max = pd.concat([ground_truth_max, spTRS_max])
 
     # find f-score about ground_truth for each pipeline
@@ -300,26 +369,57 @@ def Fscore_Comparison(Best_dict: dict, Best_Fscore):
     return pip_res
 
 
-def Show_Comparison(pip_res:pd.DataFrame,folder, compare='platform'):
+def Fscore_Comparison_pip(sptFile, has_ground_truth=False):
+    sptinfo = sptInfo(sptFile)
+    map_chains = sptinfo.get_map_chains()
+    pip_names = ['Seurat', 'Giotto', 'CARD']
+    pip_res = pd.DataFrame(map_chains.iloc[:, 0])
+    pip_res.columns = ['Despot']
+    for pip in pip_names:
+        pip_perf = Pipline_findgroups(sptFile, pip, beta=1, greedy=1)
+        pip_res[pip] = pip_perf.iloc[:, 0]
+    if has_ground_truth:
+        pip_gt, _ = spTRS_Find_bestGroup(sptFile, beta=1, greedy=1, clu_subset=['ground_truth'])
+        col = ["cell-type", "F1-score", "domain", "dct", "dcv", "clu"]
+        best_df = pd.DataFrame(columns=col)
+        cell_types = pip_gt.keys()
+        for ct in cell_types:
+            Best_item = pip_gt[ct]
+            mtds = Best_item[2].split('+')
+            dct_mtd, dcv_mtd, clu_mtd = mtds[0], mtds[1], mtds[2]
+            df_item = pd.DataFrame(data=[ct, Best_item[0], Best_item[1], dct_mtd, dcv_mtd, clu_mtd],
+                                   index=col, columns=[ct]).T
+            best_df = pd.concat([best_df, df_item])
+        pip_res['ground_truth'] = best_df['F1-score']
+    return pip_res.T
+
+def Show_Comparison(sptFile,folder, figsize=(3.5,3), compare='platform',cell_type=None, title='F1-score', has_ground_truth=False):
     from vsl.palette import Set_palette
     plt.rcParams["font.sans-serif"] = ["Arial"]
     plt.rcParams["axes.unicode_minus"] = False
     plt.rcParams['font.size'] = 14
-    comp_mtds = ['Giotto', 'Seurat', 'spTRS']
+    pip_res = Fscore_Comparison_pip(sptFile, has_ground_truth)
+    comp_mtds = ['Giotto', 'Seurat', 'CARD', 'Despot']
+    if has_ground_truth:
+        comp_mtds= ['Giotto', 'Seurat', 'CARD', 'ground_truth', 'Despot']
 
-    # cmap = ['#7FC97F','#BEAED4', '#FDC086']
-    comp_res = pip_res.loc[comp_mtds, :]
-    comp_ct = list(pip_res.columns)
+    full_ct = list(pip_res.columns)
+    full_ct.sort()
+    palette, cmap = Set_palette(len(full_ct))
+    if cell_type is None:
+        comp_ct = list(pip_res.columns)
+    else:
+        comp_ct = cell_type
     comp_ct.sort()
-    palette, cmap = Set_palette(len(comp_ct))
+    comp_res = pip_res.loc[comp_mtds, comp_ct]
     x = np.arange(len(comp_mtds)) * 3
     all_width = 2.5  # the width of the bars
     # fig = None
     # if ax is None:
-    fig, ax = plt.subplots(1, 1, figsize=(3.5,3), constrained_layout=True)
+    fig, ax = plt.subplots(1, 1, figsize=figsize, constrained_layout=True)
     for m in range(len(comp_mtds)):
         comp_mtd = comp_mtds[m]
-        measurement = comp_res.loc[comp_mtd, :]
+        measurement = comp_res.loc[comp_mtd, comp_ct]
         measurement = pd.DataFrame([np.nan_to_num(item) for item in measurement], index=comp_res.columns)
         measurement = measurement.sort_index()
         bar_width = all_width / sum(list(measurement.loc[:, 0] > 0))
@@ -327,11 +427,12 @@ def Show_Comparison(pip_res:pd.DataFrame,folder, compare='platform'):
         for ct in measurement.index:
             if measurement.loc[ct, 0] > 0:
                 offset = bar_width * multiplier
-                rects = ax.bar(x[m] + offset, measurement.loc[ct, 0], bar_width, color=palette[comp_ct.index(ct)])
+                color = palette[full_ct.index(ct)]
+                rects = ax.bar(x[m] + offset, measurement.loc[ct, 0], bar_width, color=color)
                 ax.bar_label(rects, padding=3, fmt='%.2f', rotation=90, fontsize=10)
                 multiplier += 1
-    ax.set_title('F1-score (Slice2)', fontsize=14)
-    ax.set_xticks(x+all_width/3, ['Giotto', 'Seurat', 'Despot'])
+    ax.set_title(title, fontsize=16)
+    ax.set_xticks(x+all_width/3, comp_mtds)
     ax.set_yticks([.0, .5, 1.0])
     ax.set_yticklabels([.0, .5, 1.0], fontsize=10)
     ax.set_ylim(-0.03, 1.1)
@@ -358,7 +459,7 @@ def Show_Comparison(pip_res:pd.DataFrame,folder, compare='platform'):
 
 
 # 3D landscape for SCSPs
-def Show_3D_landscape(sptFile, folder=None, cell_types=None, sf=None, pipline=None):
+def Show_3D_landscape(sptFile, folder=None, cell_types=None, sf=None, pipline=None,imgPath=None, alpha=0.1):
     from mpl_toolkits.mplot3d import Axes3D
     from vsl.boundary import boundary_extract, show_edge
     from PIL import Image
@@ -367,23 +468,37 @@ def Show_3D_landscape(sptFile, folder=None, cell_types=None, sf=None, pipline=No
     plt.rcParams["font.sans-serif"] = ["Arial"]
     plt.rcParams["axes.unicode_minus"] = False
     sptinfo = sptInfo(sptFile)
+    platform = sptinfo.get_platform()
+    print("Platform: {0}".format(platform))
     # handle images
-    img = Image.open(sptinfo.get_imgPath('low'))
-    img0 = np.array(img) / 255
-    img0 = img0
-    img0[img0 > 1] = 1
-    w, h = img.height, img.width
+    if sptinfo.get_platform() != 'ST':
+        img = Image.open(sptinfo.get_imgPath('low'))
+        img0 = np.array(img) / 255
+        img0[img0 > 1] = 1
+        w, h = img.height, img.width
 
-    # handle coordinates
-    coords = sptinfo.get_coords()
-    if sf is None:
-        sf = sptinfo.get_sf(solution='low')
-    x, y = coords.loc[:, 'image_row'] * sf, coords.loc[:, 'image_col'] * sf
-    xmin, xmax = int(np.min(x) - 60), int(np.max(x) + 60)
-    ymin, ymax = int(np.min(y) - 60), int(np.max(y) + 60)
-    x -= xmin
-    y -= ymin
-    imgX, imgY = ogrid[0:(xmax - xmin), 0:(ymax - ymin)]
+        # handle coordinates
+        coords = sptinfo.get_coords()
+        if sf is None:
+            sf = sptinfo.get_sf(solution='low')
+        x, y = coords.loc[:, 'image_row'] * sf, coords.loc[:, 'image_col'] * sf
+        xmin, xmax = int(np.min(x) - 60), int(np.max(x) + 60)
+        ymin, ymax = int(np.min(y) - 60), int(np.max(y) + 60)
+        x -= xmin
+        y -= ymin
+        imgX, imgY = ogrid[0:(xmax - xmin), 0:(ymax - ymin)]
+    else:
+        img = Image.open(imgPath)
+        img0 = np.array(img) / 255
+        coords = sptinfo.get_coords()
+        w, h = img.width, img.height
+        sf = img.height / (np.max(coords.loc[:, 'image_col'])+1.5 - np.min(coords.loc[:, 'image_col']))
+        x, y = (np.max(coords.loc[:, 'image_col'])+1.5-coords.loc[:, 'image_col'])*sf, (coords.loc[:, 'image_row']-0.2)*sf
+        # xmin, xmax = int(np.min(x)), int(np.max(x))
+        # ymin, ymax = int(np.min(y)), int(np.max(y))
+        # x -= xmin
+        # y -= ymin
+        imgX, imgY = ogrid[0:img.height, 0:img.width]
 
     # handle the compared pipline or Despot
     # the full cell-types for SCSPs
@@ -404,6 +519,9 @@ def Show_3D_landscape(sptFile, folder=None, cell_types=None, sf=None, pipline=No
             print(cell_types)
         else:
             cell_types = []
+    else:
+        # select the overlaps of provided cell_types and existing cell_types
+        cell_types = list(set(cell_types).intersection(list(Best_df.index)))
 
     # arrange the cell_types
     spot3Ds = {}
@@ -415,14 +533,19 @@ def Show_3D_landscape(sptFile, folder=None, cell_types=None, sf=None, pipline=No
         if type(domain) == int:
             domain = (domain,)
         dct_mtd, dcv_mtd, clu_mtd = Best_item['dct'], Best_item['dcv'], Best_item['clu']
-        idents = sptinfo.get_idents(dct_mtd)[clu_mtd]
+        if clu_mtd in ['CARD']:   # if use the dominant cell-type as cluster, we directly generate it
+            adata = Load_spt_to_AnnData(sptFile, 'matrix', platform=platform, loadDeconv=True)
+            cell_prop = adata.obsm[clu_mtd]
+            idents = cell_prop.idxmax(axis=1).astype('category')
+        else:
+            idents = sptinfo.get_idents(dct_mtd)[clu_mtd]
 
         spot3D = pd.concat([x, y, idents], axis=1)
         spot3D.columns = ['X', 'Y', 'level']
         # select domain
         selection = np.zeros_like(idents)
         for d in domain:
-            selection += (np.array(idents, dtype=int) == d)
+            selection += (np.array(idents) == d)
         selection = np.array(selection, dtype=bool)
         spot3D = spot3D[selection]
         spot3Ds[cell_type] = spot3D
@@ -435,39 +558,67 @@ def Show_3D_landscape(sptFile, folder=None, cell_types=None, sf=None, pipline=No
     fig = plt.figure(figsize=(15, 10))
     ax1 = plt.axes(projection='3d')
     arranged_types = centroid.sort_values(by=0)
-    palette, cmap = Set_palette(len(cell_types))
+    palette, cmap = Set_palette(len(full_ct))
+    if len(full_ct) > 20:
+        palette = palette + palette
     z = 0  # the Z index
     prev_spot3D = None
+    spot3D_layer = {}
     for cell_type in arranged_types.index:
+        # print(full_ct.index(cell_type))
         color = palette[full_ct.index(cell_type)]  # get the related cell-type color
         spot3D = spot3Ds[cell_type]
-        if prev_spot3D is None:
-            z = z + 1
+        if len(spot3D_layer) == 0:
+            z = 1
+            spot3D_layer[z] = [cell_type]
         else:
-            if len(pd.merge(prev_spot3D[['X', 'Y']], spot3D[['X', 'Y']], how='inner')) > 0:
-                z = z + 1
+            need_new_layer = True   # if need new layer
+            for layer in spot3D_layer.keys():
+                ct_in_layer = spot3D_layer[layer]  # all the cell types in a layer
+                put_in_layer = True
+                for ct in ct_in_layer: # if new cell type has overlap of existing layer, z=z+1.
+                    if len(pd.merge(spot3Ds[ct][['X', 'Y']], spot3D[['X', 'Y']], how='inner')) > 0:
+                        put_in_layer = False
+                        break
+                if put_in_layer:
+                    z = layer
+                    spot3D_layer[layer].append(cell_type)
+                    need_new_layer = False   # cell_type has been put in existing layer, so we don't need a new layer
+                    break
+            if need_new_layer:
+                z = max(list(spot3D_layer.keys())) + 1
+                spot3D_layer[z] = [cell_type]
         pts = np.array(spot3D[['X', 'Y']])
-        alpha = 0.1
         edges, centers = boundary_extract(pts, alpha, err=10e-5)
         spot3D['Z'] = np.ones_like(spot3D.index) * z
+        if sptinfo.get_platform() == 'ST':
+            s = 30
+        else:
+            s=10
         ax1.scatter3D(np.array(spot3D['X'], dtype=float),
                       np.array(spot3D['Y'], dtype=float),
                       np.array(spot3D['Z'], dtype=float),
-                      color=color, label=cell_type, s=10, alpha=0.8)
-        sel_line = np.random.randint(len(spot3D.index), size=max(round(len(spot3D.index) / 20), 5))
+                      color=color, label=cell_type, s=s, alpha=1)
+        if sptinfo.get_platform() == 'ST':
+            sel_line = np.random.randint(len(spot3D.index), size=max(round(len(spot3D.index) / 10), 5))
+        else:
+            sel_line = np.random.randint(len(spot3D.index), size=max(round(len(spot3D.index) / 20), 5))
         for item in sel_line:
             x = spot3D['X'][item]
             y = spot3D['Y'][item]
             zz = spot3D['Z'][item]
-            ax1.plot([x, x], [y, y], [zz, 0], color=color, alpha=0.5, linewidth=0.75)
+            ax1.plot([x, x], [y, y], [zz, 0], color=color, alpha=0.5, linewidth=1.25)
         show_edge(edges, ax1, z=0, color=color, linewidth=2, alpha=1, label=None)
-        prev_spot3D = spot3Ds[cell_type]
-    ax1.plot_surface(imgX, imgY, np.atleast_2d(0), rstride=10, cstride=10, facecolors=img0[xmin:xmax, ymin:ymax],
+    if sptinfo.get_platform() != 'ST':
+        ax1.plot_surface(imgX, imgY, np.atleast_2d(0), rstride=10, cstride=10, facecolors=img0[xmin:xmax, ymin:ymax],
                      alpha=0.5, linewidth=0)
+    else:
+        ax1.plot_surface(imgX, imgY, np.atleast_2d(0), rstride=5, cstride=5, facecolors=img0,
+                         alpha=0.5, linewidth=0)
     # ax1.scatter3D(spot3Dbg['X'], spot3Dbg['Y'], spot3Dbg['Z'], c='grey', label='background')
     ax1.set_xticks(ticks=range(w))
     ax1.set_yticks(ticks=range(h))
-    ax1.set_zticks(ticks=range(len(cell_types)))
+    ax1.set_zticks(ticks=range(int(z*1.5)))
     ax1.axis('off')
     ax1.legend(loc='lower left', ncol=3, frameon=False,
                bbox_to_anchor=(0.1, -0.05),
@@ -529,50 +680,83 @@ def Show_bash_best_group(sptFile, folder, Best_dict=None):
         fig = Show_best_group(sptFile, cell_type, fscore, domain, mtd_chain, figname, save=True)
 
 
-def Show_row_best_group(sptFile, folder, cell_types):
+def Show_row_best_group(sptFile, folder, cell_types, file_name='domains1.svg', imgPath=None, titles=None, cmap='cividis', ap=100):
     if not os.path.isdir(folder):
         os.makedirs(folder)
     sptinfo = sptInfo(sptFile)
-    platform = sptinfo.configs['platform'][0]
+    platform = sptinfo.get_platform()
     if platform != 'ST':
         platform = '10X_Visium'
     Best_df = sptinfo.get_map_chains()
     nct = len(cell_types)
-    fig, axs = plt.subplots(1, nct, figsize=(3 * nct, 4))
+    if platform == '10X_Visium':
+        fig, axs = plt.subplots(1, nct, figsize=(3 * nct, 4))
+    else:
+        fig, axs = plt.subplots(1, nct, figsize=(3.5 * nct, 3.2))
     plt.subplots_adjust(wspace=0.05, hspace=0)
     for i in range(nct):
         cell_type = cell_types[i]
+        if titles:
+            title = titles[i]
+        else:
+            title = cell_type
         Best_item = Best_df.loc[cell_type, :]
         domain = Best_item['domain']
         f1score = Best_item['F1-score']
         dct_mtd, dcv_mtd, clu_mtd = Best_item['dct'], Best_item['dcv'], Best_item['clu']
         adata = Load_spt_to_AnnData(sptFile, h5data=dct_mtd, loadDeconv=True, platform=platform)
         Ax_prop_domains(adata, clu_mtd, dcv_mtd, domain, cell_type, axs[i],
-                        title=cell_type, f1score=f1score, platform=platform)
-    figname = folder + "/domains1.svg"
+                        title=title, f1score=f1score, platform=platform, imgPath=imgPath, cmap=cmap, ap=ap)
+    figname = folder + "/"+file_name
     fig.savefig(figname, dpi=400)
 
 
-def Show_row_marker_genes(sptFile, folder, genes, cell_types):
+def Show_row_marker_genes(sptFile, folder, genes, cell_types=None, spmatrix=None,figname='gene.svg', cmap='coolwarm'):
     if not os.path.isdir(folder):
         os.makedirs(folder)
     sptinfo = sptInfo(sptFile)
     Best_df = sptinfo.get_map_chains()
-    platform = sptinfo.configs['platform'][0]
+    platform = sptinfo.get_platform()
+    print(platform)
     if platform != 'ST':
         platform = '10X_Visium'
     ngenes = len(genes)
-    fig, axs = plt.subplots(1, ngenes, figsize=(3 * ngenes, 4))
+    if platform == 'ST':
+        fig, axs = plt.subplots(1, ngenes, figsize=(3.5 * ngenes, 3.2))
+    else:
+        fig, axs = plt.subplots(1, ngenes, figsize=(3 * ngenes, 4))
     plt.subplots_adjust(wspace=0.05, hspace=0)
     for i in range(ngenes):
         gene = genes[i]
-        cell_type = cell_types[i]
-        Best_item = Best_df.loc[cell_type, :]
-        dct_mtd, dcv_mtd, clu_mtd = Best_item['dct'], Best_item['dcv'], Best_item['clu']
+        if spmatrix is None:
+            cell_type = cell_types[i]
+            Best_item = Best_df.loc[cell_type, :]
+            dct_mtd, dcv_mtd, clu_mtd = Best_item['dct'], Best_item['dcv'], Best_item['clu']
+        else:
+            dct_mtd = spmatrix
         adata_sp = Load_spt_to_AnnData(sptFile, h5data=dct_mtd, platform=platform)
+        sc.pp.normalize_total(adata_sp)
         sc.pp.log1p(adata_sp)
-        Ax_expr_spgenes(adata_sp, gene, ax=axs[i], platform=platform, title=gene)
-    figname = folder + "/genes.svg"
+        Ax_expr_spgenes(adata_sp, gene, ax=axs[i], platform=platform, title=gene, cmap=cmap)
+    figname = folder + "/" + figname
+    fig.savefig(figname, dpi=400)
+
+
+def Show_row_scmarkers(sptFile, folder, genes, figname='sc_gene.svg'):
+    if not os.path.isdir(folder):
+        os.makedirs(folder)
+    ngenes = len(genes)
+    fig, axs = plt.subplots(1, ngenes, figsize=(3 * ngenes, 2.6))
+    plt.subplots_adjust(wspace=0.1, hspace=0)
+    adata_sc = Load_spt_sc_to_AnnData(sptFile, h5data='scRNA_seq')
+    from clu.Cluster_leiden import Spatial_Cluster_Analysis
+    adata_sc = Spatial_Cluster_Analysis(adata_sc)
+    for i in range(ngenes):
+        gene = genes[i]
+        sc.pl.umap(adata_sc, ax=axs[i], color=gene, show=False, size=12, frameon=False)
+        axs[i].set_xlabel('')
+        axs[i].set_ylabel('')
+    figname = folder + "/" + figname
     fig.savefig(figname, dpi=400)
 
 
@@ -612,7 +796,8 @@ def spTRS_self_correlation(sptFile, alpha=1, method='pearsonr'):
                 for y in range(p_val.shape[1]):
                     corr[x, y], p_val[x, y] = corr_mtd(comp.iloc[:, x], comp.iloc[:, y])
             coef = pd.DataFrame(coef, index=comp.columns, columns=comp.columns)
-            Save_spt_from_corrcoef(sptFile, coef, dcv, h5data=h5data)
+
+            # Save_spt_from_corrcoef(sptFile, coef, dcv, h5data=h5data)
 
 
 def spTRS_combine_best_group(sptFile, Best_dict=None):
@@ -628,7 +813,7 @@ def spTRS_combine_best_group(sptFile, Best_dict=None):
     abundance = pd.DataFrame()
     sptinfo = sptInfo(sptFile)
     dct_mtds = sptinfo.get_spmatrix()
-    adatas = list(map(lambda dct: Load_spt_to_AnnData(sptFile, h5data=dct), dct_mtds))
+    adatas = list(map(lambda dct: Load_spt_to_AnnData(sptFile, h5data=dct, loadDeconv=True), dct_mtds))
     adatas = dict(zip(dct_mtds, adatas))
     for cell_type in cell_types:
         if Best_dict is not None:
@@ -658,30 +843,218 @@ def spTRS_group_correlation(sptFile, Best_dict=None, alpha=1):
     return comp, corr, p_val
 
 
-def do_corr(comp, method="pearsonr"):
+
+ct0 = ['Acinar cells', 'Cancer clone A', 'Cancer clone B', 'Endocrine cells', 'RBCs','Tuft cells',
+'Fibroblasts','T cells & NK cells', 'mDCs B','Macrophages B','Monocytes','Mast cells', 'mDCs B',
+       'Ductal - APOL1 high/hypoxic', 'Ductal - CRISP3 high/centroacinar like','Ductal - MHC Class II','Ductal - terminal ductal like',
+       ]
+
+ct1 = [
+'CAFs myCAF-like','Cycling_Myeloid','Macrophage','Monocyte','DCs', 'Endothelial Lymphatic LYVE1','Plasmablasts', 'B cells Memory',
+'Endothelial CXCL12','Endothelial RGS5','Endothelial ACKR1','PVL Immature','Cancer LumB SC','Cancer Cycling', 'Cancer Basal SC',
+    'Mature Luminal','Luminal Progenitors','Myoepithelial',
+'B cells Naive','CAFs MSC iCAF-like',
+]
+
+ct2 = ['PT(S1-S2)', 'PT(S3)', 'LH(AL)', 'LH(DL)', 'CD-PC', 'CNT', 'DCT']
+
+ct3 = ['Normal Epithelial', 'Cancer Epithelial', 'CAFs', 'T-cells', 'Myeloid']
+
+ct4 =['Cancer Epithelial', 'T-cells', 'CAFs', 'Plasmablasts',
+       'Myeloid', 'Endothelial', 'PVL', 'Normal Epithelial','B-cells']
+
+def Despot_pair_correlation(sptFile1, sptFile2, alpha=1, ct=None):
+    comp1, y_lag1 = spTRS_combine_best_group(sptFile1)
+    comp1 = comp1 + alpha * y_lag1
+    comp2, y_lag2 = spTRS_combine_best_group(sptFile2)
+    comp2 = comp2 + alpha * y_lag2
+    corr, p_val = do_corr(comp1, comp2)
+    idx = corr.columns
+    diag_val = pd.DataFrame([corr.loc[i,i] for i in idx], index=idx)
+    diag_val = diag_val.sort_values(by=0,ascending=False)
+    if ct:
+        corr = corr[ct]
+        corr = corr.loc[np.flip(ct), :]  # index are sn, columns are sc
+    else:
+        corr = corr[diag_val.index]
+        corr = corr.loc[np.flip(diag_val.index), :]  # index are sn, columns are sc
+    return corr, p_val
+
+
+def do_corr(comp, comp0=None, method="pearsonr"):
     # normalize the comp
-    ct_mean = np.mean(comp, axis=0)
-    ct_std = np.std(comp, axis=0)
-    comp = (comp - ct_mean) / ct_std
     from scipy.stats import pearsonr, spearmanr
     if method == "pearsonr":
         f = pearsonr
     else:
         f = spearmanr
-    corr = np.zeros((comp.shape[1], comp.shape[1]))
-    p_val = np.zeros((comp.shape[1], comp.shape[1]))
+    ct_mean = np.mean(comp, axis=0)
+    ct_std = np.std(comp, axis=0)
+    comp = (comp - ct_mean) / ct_std
+    if comp0 is None:
+        comp0 = comp
+        ct_mean = np.mean(comp0, axis=0)
+        ct_std = np.std(comp0, axis=0)
+        comp0 = (comp0 - ct_mean) / ct_std
+    corr = np.zeros((comp.shape[1], comp0.shape[1]))
+    p_val = np.zeros((comp.shape[1], comp0.shape[1]))
     for x in range(p_val.shape[0]):
         for y in range(p_val.shape[1]):
-            corr[x, y], p_val[x, y] = f(comp.iloc[:, x], comp.iloc[:, y])
-    corr = pd.DataFrame(corr, index=comp.columns, columns=comp.columns)
-    p_val = pd.DataFrame(p_val, index=comp.columns, columns=comp.columns)
+            corr[x, y], p_val[x, y] = f(comp.iloc[:, x], comp0.iloc[:, y])
+    corr = pd.DataFrame(corr, index=comp.columns, columns=comp0.columns)
+    p_val = pd.DataFrame(p_val, index=comp.columns, columns=comp0.columns)
     return corr, p_val
 
 
-def Show_self_correlation(corr, folder):
-    fig, axs = plt.subplots(1, 1, figsize=(7, 6), constrained_layout=True)
-    sns.heatmap(corr, cmap="viridis", ax=axs)
-    fig.savefig(folder + '/corr1.eps', dpi=400)
+def heatmap(data, row_labels, col_labels, ax=None,
+            cbar_kw=None, cbarlabel="", **kwargs):
+    """
+    Create a heatmap from a numpy array and two lists of labels.
+
+    Parameters
+    ----------
+    data
+        A 2D numpy array of shape (M, N).
+    row_labels
+        A list or array of length M with the labels for the rows.
+    col_labels
+        A list or array of length N with the labels for the columns.
+    ax
+        A `matplotlib.axes.Axes` instance to which the heatmap is plotted.  If
+        not provided, use current axes or create a new one.  Optional.
+    cbar_kw
+        A dictionary with arguments to `matplotlib.Figure.colorbar`.  Optional.
+    cbarlabel
+        The label for the colorbar.  Optional.
+    **kwargs
+        All other arguments are forwarded to `imshow`.
+    """
+
+    if ax is None:
+        ax = plt.gca()
+
+    if cbar_kw is None:
+        cbar_kw = {}
+
+    # Plot the heatmap
+    im = ax.imshow(data, **kwargs)
+
+    # Create colorbar
+    # cbar = ax.figure.colorbar(im, ax=ax, **cbar_kw)
+    # cbar.ax.set_ylabel(cbarlabel, rotation=-90, va="bottom")
+
+    # Show all ticks and label them with the respective list entries.
+    ax.set_xticks(np.arange(data.shape[1]), labels=row_labels)
+    if len(col_labels) > 0:
+        ax.set_yticks(np.arange(data.shape[0]), labels=col_labels)
+
+    # Let the horizontal axes labeling appear on top.
+    ax.tick_params(top=False, bottom=True,
+                   labeltop=False, labelbottom=True, color='white')
+
+    # Rotate the tick labels and set their alignment.
+    plt.setp(ax.get_xticklabels(), rotation=90, ha="right",
+             rotation_mode="anchor")
+
+    # Turn spines off and create white grid.
+    ax.spines[:].set_visible(False)
+
+    ax.set_xticks(np.arange(data.shape[1]+1)-.5, minor=True)
+    ax.set_yticks(np.arange(data.shape[0]+1)-.5, minor=True)
+    # ax.grid(which="minor", color="grey", linestyle='-', linewidth=1)
+    ax.tick_params(which="minor", bottom=False, left=False)
+
+    return im
+
+def annotate_heatmap(im, data=None, valfmt="{x:.2f}",
+                     textcolors=("black", "white"),
+                     threshold=None, **textkw):
+    """
+    A function to annotate a heatmap.
+
+    Parameters
+    ----------
+    im
+        The AxesImage to be labeled.
+    data
+        Data used to annotate.  If None, the image's data is used.  Optional.
+    valfmt
+        The format of the annotations inside the heatmap.  This should either
+        use the string format method, e.g. "$ {x:.2f}", or be a
+        `matplotlib.ticker.Formatter`.  Optional.
+    textcolors
+        A pair of colors.  The first is used for values below a threshold,
+        the second for those above.  Optional.
+    threshold
+        Value in data units according to which the colors from textcolors are
+        applied.  If None (the default) uses the middle of the colormap as
+        separation.  Optional.
+    **kwargs
+        All other arguments are forwarded to each call to `text` used to create
+        the text labels.
+    """
+    from matplotlib import ticker
+    if not isinstance(data, (list, np.ndarray)):
+        data = im.get_array()
+
+    # Normalize the threshold to the images color range.
+    if threshold is not None:
+        threshold = im.norm(threshold)
+    else:
+        threshold = 0.3
+
+    # Set default alignment to center, but allow it to be
+    # overwritten by textkw.
+    kw = dict(horizontalalignment="center",
+              verticalalignment="center")
+    kw.update(textkw)
+
+    def func(x, pos):
+        if x < 0:
+            return ''
+        else:
+            return f"{x:.2f}".replace("0.", ".").replace("1.00", "1.0")
+
+    valfmt = ticker.FuncFormatter(func)
+
+    # Get the formatter in case a string is supplied
+    if isinstance(valfmt, str):
+        valfmt = ticker.StrMethodFormatter(valfmt)
+
+    # Loop over the data and create a `Text` for each "pixel".
+    # Change the text's color depending on the data.
+    texts = []
+    for i in range(data.shape[0]):
+        for j in range(data.shape[1]):
+            kw.update(color=textcolors[int(data[i, j] < threshold)])
+            text = im.axes.text(j, i, valfmt(data[i, j], None), **kw)
+            texts.append(text)
+
+    return texts
+
+
+def Show_paired_correlation(corr, folder):
+    fig, axs = plt.subplots(1, 1, figsize=(6.5, 5.5), constrained_layout=True)
+    im = heatmap(corr, corr.columns, corr.index, ax=axs, vmin=-1,
+                    cmap="cividis", cbarlabel="Pearson's Correlation")
+
+    from matplotlib import ticker
+    annotate_heatmap(im, size=11)
+    axs.set_ylabel('single-nucleus', fontsize=14)
+    axs.set_xlabel('single-cell', fontsize=14)
+    axs.set_title('Co-occurrence of sc & sn cell-types')
+    fig.savefig(folder + '/corr.svg', dpi=400)
+
+
+def Show_self_correlation(corr, folder, figsize=(7.5, 7.5)):
+    fig, axs = plt.subplots(1, 1, figsize=figsize, constrained_layout=True)
+    im = heatmap(corr, corr.columns, corr.index, ax=axs, vmin=0,
+                    cmap="cividis", cbarlabel="Pearson's Correlation")
+
+    from matplotlib import ticker
+    annotate_heatmap(im, size=11)
+    axs.set_title('Self correlation of cell-types')
+    fig.savefig(folder + '/corr.svg', dpi=400)
 
 
 def Generate_New_idents(sptFile, Best_dict):
@@ -710,7 +1083,7 @@ def Generate_New_idents(sptFile, Best_dict):
 
 
 # generate venn graph for multimodal integration analysis
-def Gen_venn(sptFile, folder, Best_dict=None, show_genes=2, cell_filter=None):
+def Gen_venn(sptFile, folder, sptFile2=None, Best_dict=None, show_genes=2, cell_filter=None, pval=10e-6, effect=0.5):
     sptinfo = sptInfo(sptFile)
     platform = sptinfo.configs['platform'][0]
     if platform != 'ST':
@@ -722,7 +1095,7 @@ def Gen_venn(sptFile, folder, Best_dict=None, show_genes=2, cell_filter=None):
     else:
         if len(Best_df) > 0:
             cell_types = list(Best_df.index)
-            print(cell_types)
+
     dct_mtds = sptinfo.get_spmatrix()
     adatas = list(map(lambda dct: Load_spt_to_AnnData(sptFile, h5data=dct, platform=platform), dct_mtds))
     for i in range(len(adatas)):
@@ -734,6 +1107,10 @@ def Gen_venn(sptFile, folder, Best_dict=None, show_genes=2, cell_filter=None):
     from clu.Cluster_leiden import Spatial_Cluster_Analysis
     adata_sc = Spatial_Cluster_Analysis(adata_sc)
     adata_sc0 = adata_sc.copy()
+    if sptFile2 is not None:
+        adata_sc1 = Load_spt_sc_to_AnnData(sptFile2)
+        adata_sc1 = Spatial_Cluster_Analysis(adata_sc1)
+        adata_sc2 = adata_sc1.copy()
     inter_genes = {}
     for cell_type in cell_types:
         if cell_filter is not None and cell_type in cell_filter:
@@ -748,15 +1125,18 @@ def Gen_venn(sptFile, folder, Best_dict=None, show_genes=2, cell_filter=None):
             domain = Best_item['domain']
             dct_mtd, dcv_mtd, clu_mtd = Best_item['dct'], Best_item['dcv'], Best_item['clu']
         adata_sp = adatas[dct_mtd]
-        inter_gene = Gen_venn2(adata_sp, adata_sc, domain, clu_mtd, cell_type, folder)
+        if sptFile2 is not None:
+            inter_gene = Gen_venn3(adata_sp, adata_sc, adata_sc2, domain, clu_mtd, cell_type, cell_type, folder)
+        else:
+            inter_gene = Gen_venn2(adata_sp, adata_sc, domain, clu_mtd, cell_type, folder, pval, effect)
         marker_genes = list(inter_gene.iloc[0:show_genes, 0])
-        for marker in marker_genes:
-            figname = folder + '/' + marker + "_" + cell_type.replace('/', '|') + "_expr.eps"
-            Show_matched_genes(adata_sp=adata_sp,
-                               adata_sc=adata_sc0,
-                               genes=marker,
-                               platform=platform,
-                               figname=figname)
+        # for marker in marker_genes:
+        #     figname = folder + '/' + marker + "_" + cell_type.replace('/', '|') + "_expr.eps"
+        #     Show_matched_genes(adata_sp=adata_sp,
+        #                        adata_sc=adata_sc0,
+        #                        genes=marker,
+        #                        platform=platform,
+        #                        figname=figname)
         inter_genes[cell_type] = inter_gene
     return inter_genes
 
@@ -770,50 +1150,54 @@ def Gen_venn2(adata_sp, adata_sc, domain, clu_mtd, cell_type, folder, pval=10e-6
         groups = [str(i) for i in domain]
     else:
         groups = [str(domain)]
-    sp_gene = Gen_DEgenes(adata_sp, clu_mtd, groups, pval=pval, effect=effect)
-    sc_gene = Gen_DEgenes(adata_sc, groupby="annotation", groups=[cell_type], pval=pval, effect=effect)
+    sp_gene = Gen_DEgenes(adata_sp, clu_mtd, groups, pval=pval, effect=effect, only_positive=True)
+    sc_gene = Gen_DEgenes(adata_sc, groupby="annotation", groups=[cell_type], pval=pval, effect=effect,only_positive=True)
 
-    fig, axs = plt.subplots(1, 1, figsize=(3.5, 3.5), constrained_layout=True)
-    f = venn2(
-        subsets=[set(sp_gene.iloc[:, 0]), set(sc_gene.iloc[:, 0])],
-        set_labels=('domain:' + str(domain), cell_type),
-        alpha=0.8,  # Transparency
-        normalize_to=1.0, ax=axs)
-
-    f.get_patch_by_id('11').set_linestyle('--')  # Middle ring outer frame line type
-    f.get_patch_by_id('11').set_edgecolor('white')  # Middle ring outer frame line color
-    inter_genes = (set(sp_gene.iloc[:, 0]).intersection(set(sc_gene.iloc[:, 0])))
-    inter_genes = pd.DataFrame(list(inter_genes), columns=['names'])
-    inter_genes['scores'] = np.mean(np.array([list(sp_gene.loc[list(inter_genes['names']), 'scores']),
-                                              list(sc_gene.loc[inter_genes['names'], 'scores'])]), axis=0)
-    inter_genes = inter_genes.sort_values(by=['scores'], ascending=False)
-    bg_genes = Gen_Background_genes(adata_sp, adata_sc)
-    mia = MIA_analysis(len(inter_genes), len(bg_genes), len(sc_gene), len(sp_gene))
-    axs.annotate('MIA: %.3f' % mia,
-                 color='black',
-                 xy=f.get_label_by_id('11').get_position() + np.array([0, 0.05]),
-                 xytext=(20, 100),
-                 ha='center', textcoords='offset points',
-                 bbox=dict(boxstyle='round,pad=0.5', fc='grey', alpha=0.7),
-                 arrowprops=dict(arrowstyle='-|>', connectionstyle='arc3,rad=-0.5', color='black')
-                 )
-    figname = folder + "/" + cell_type.replace("/", ".") + "_.eps"
-    fig.savefig(figname, dpi=400)
+    if len(sp_gene) > 0 and len(sc_gene) > 0:
+        inter_genes = (set(sp_gene.iloc[:, 0]).intersection(set(sc_gene.iloc[:, 0])))
+        if len(inter_genes) > 0:
+            inter_genes = pd.DataFrame(list(inter_genes), columns=['names'])
+            inter_genes['scores'] = np.mean(np.array([list(sp_gene.loc[list(inter_genes['names']), 'scores']),
+                                                      list(sc_gene.loc[inter_genes['names'], 'scores'])]), axis=0)
+            inter_genes = inter_genes.sort_values(by=['scores'], ascending=False)
+            bg_genes = Gen_Background_genes(adata_sp, adata_sc)
+            mia = MIA_analysis(len(inter_genes), len(bg_genes), len(sc_gene), len(sp_gene))
+            # fig, axs = plt.subplots(1, 1, figsize=(3.5, 3.5), constrained_layout=True)
+            # f = venn2(
+            #     subsets=[set(sp_gene.iloc[:, 0]), set(sc_gene.iloc[:, 0])],
+            #     set_labels=('domain:' + str(domain), cell_type),
+            #     alpha=0.8,  # Transparency
+            #     normalize_to=1.0, ax=axs)
+            # f.get_patch_by_id('11').set_linestyle('--')  # Middle ring outer frame line type
+            # f.get_patch_by_id('11').set_edgecolor('white')  # Middle ring outer frame line color
+            # axs.annotate('MIA: %.3f' % mia,
+            #              color='black',
+            #              xy=f.get_label_by_id('11').get_position() + np.array([0, 0.05]),
+            #              xytext=(20, 100),
+            #              ha='center', textcoords='offset points',
+            #              bbox=dict(boxstyle='round,pad=0.5', fc='grey', alpha=0.7),
+            #              arrowprops=dict(arrowstyle='-|>', connectionstyle='arc3,rad=-0.5', color='black')
+            #              )
+            # figname = folder + "/" + cell_type.replace("/", ".") + "_.svg"
+            # fig.savefig(figname, dpi=400)
+        else:
+            print('No overlapped genes detected, return empty DataFrame.')
+            inter_genes = pd.DataFrame(columns=['names'])
+    else:
+        print('No DE genes detected, return empty DataFrame.')
+        inter_genes=pd.DataFrame(columns=['names'])
     return inter_genes
 
 
 def Gen_venn3(adata_sp, adata_sc1, adata_sc2, domain, clu_mtd, cell_type1, cell_type2, folder, pval=10e-6, effect=0.2):
     from matplotlib_venn import venn3
-    sc.pp.log1p(adata_sp)
-    sc.pp.log1p(adata_sc1)
-    sc.pp.log1p(adata_sc2)
     adata_sp.obs[clu_mtd] = adata_sp.obs[clu_mtd].astype('str')
     if type(domain) == tuple:
         groups = [str(i) for i in domain]
     else:
         groups = [str(domain)]
 
-    sp_gene = Gen_DEgenes(adata_sp, clu_mtd, groups, pval=pval, effect=effect)
+    sp_gene = Gen_DEgenes(adata_sp, clu_mtd, groups, pval=pval, effect=0.8)
     sc_gene1 = Gen_DEgenes(adata_sc1, "annotation", [cell_type1], pval=pval, effect=effect)
     sc_gene2 = Gen_DEgenes(adata_sc2, "annotation", [cell_type2], pval=pval, effect=effect)
 
@@ -821,7 +1205,7 @@ def Gen_venn3(adata_sp, adata_sc1, adata_sc2, domain, clu_mtd, cell_type1, cell_
     f = venn3(
         subsets=[set(sp_gene.iloc[:, 0]), set(sc_gene1.iloc[:, 0]), set(sc_gene2.iloc[:, 0])],
         set_labels=('domain:' + str(domain), cell_type1, cell_type2),
-        alpha=0.8,  # Transparency
+        alpha=0.5,  # Transparency
         normalize_to=1.0, ax=axs)
 
     f.get_patch_by_id('111').set_linestyle('--')  # line style of intersection genes part
@@ -841,7 +1225,7 @@ def Gen_venn3(adata_sp, adata_sc1, adata_sc2, domain, clu_mtd, cell_type1, cell_
                  bbox=dict(boxstyle='round,pad=0.5', fc='grey', alpha=0.7),
                  arrowprops=dict(arrowstyle='-|>', connectionstyle='arc3,rad=-0.5', color='black')
                  )
-    fig.savefig(folder + "/" + cell_type1 + "_" + cell_type2 + ".eps", dpi=400)
+    fig.savefig(folder + "/" + cell_type1 + "_" + cell_type2 + ".svg", dpi=400)
     return inter_genes
 
 
@@ -869,7 +1253,7 @@ def spTRS_DE(sptFile, Best_dict, cell_type1, cell_type2):
 
 
 # generate differential expressed genes (adjusted p value < 10e-5, t-test_overestim_var; effect > 0.2, cohen's d)
-def Gen_DEgenes(adata, groupby, groups, pval=10e-5, effect=0.2):
+def Gen_DEgenes(adata, groupby, groups, pval=10e-5, effect=0.2, only_positive=True):
     sc.tl.rank_genes_groups(adata, groupby=groupby, groups=groups)
     sp_d = cohensD_eff(adata, groupby, groups)
     DE_genes = pd.DataFrame(adata.uns['rank_genes_groups']['names'])
@@ -885,7 +1269,8 @@ def Gen_DEgenes(adata, groupby, groups, pval=10e-5, effect=0.2):
     for idx in DE_genes.index:
         if idx in sp_d.index:
             DE_genes.loc[idx, "effect"] = sp_d.loc[idx, 'effect']
-    DE_genes = DE_genes[DE_genes["effect"] > effect]
+    if only_positive:
+        DE_genes = DE_genes[DE_genes['scores'] > 0]
     return DE_genes
 
 
@@ -940,11 +1325,10 @@ def DE_analysis(adata: ad.AnnData, domain1, domain2, cell_type1, cell_type2):
                          "pvals": pd.DataFrame(adata.uns['rank_genes_groups']['pvals']).iloc[:, 0],
                          "padj": pd.DataFrame(adata.uns['rank_genes_groups']['pvals_adj']).iloc[:, 0],
                          "log2FoldChange": pd.DataFrame(adata.uns['rank_genes_groups']['logfoldchanges']).iloc[:, 0], })
-    data.loc[(data.log2FoldChange > 1) & (data.padj < 0.05), 'type'] = 'up'
-    data.loc[(data.log2FoldChange < -1) & (data.padj < 0.05), 'type'] = 'down'
+    data.loc[(data.log2FoldChange > 1) & (data.pvals < 0.05), 'type'] = 'up'
+    data.loc[(data.log2FoldChange < -1) & (data.pvals < 0.05), 'type'] = 'down'
     data.loc[(abs(data.log2FoldChange) <= 1) | (data.padj >= 0.05), 'type'] = 'nosig'
     data['-logpadj'] = -data.padj.apply(math.log10)
-    data.loc[data['-logpadj'] < 5, 'type'] = 'nosig'
     data[['log2FoldChange', 'padj', 'type', '-logpadj']].head()
     colors = ["#01c5c4", "#686d76", "#ff414d"]
     sns.set_palette(sns.color_palette(colors))

@@ -8,8 +8,6 @@ sptFile <- params$sptFile
 python_path <- params$pythonPath
 temp_dir <- params$tempdir
 
-params <- h5read(sptFile, "configs")
-
 sce <- Load_sptsc_to_SCE(sptFile, h5data = "scRNA_seq")
 sce <- Analysis_scRNA_seq(sce)
 sce0 <- sce[sce@metadata$HVGs, ]
