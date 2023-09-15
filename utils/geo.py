@@ -106,7 +106,7 @@ def suitable_location(adata, perf, clu, beta=1, greedy=2):
     return best_match
 
 # # set the single-cell marker background
-# adata_sc = Load_spt_sc_to_AnnData(sptFile)
+# adata_sc = Load_spt_sc_to_AnnData(smdFile)
 # sc.pp.normalize_total(adata_sc)
 # sc.pp.log1p(adata_sc)
 # sc.tl.rank_genes_groups(adata_sc, groupby='annotation', method='wilcoxon')
@@ -159,18 +159,18 @@ def suitable_location(adata, perf, clu, beta=1, greedy=2):
 #         marker_score = (precision * recall) / (precision + recall)
 
 
-def spTRS_findgroups(sptFile, beta=1, greedy=1, spmat_subset=None, clu_subset=None, dcv_subset=None):
-    sptinfo = sptInfo(sptFile)
-    platform = sptinfo.configs['platform'][0]
-    spmats = sptinfo.get_spmatrix()
+def Despot_findgroups(smdFile, beta=1, greedy=1, spmat_subset=None, clu_subset=None, dcv_subset=None):
+    smdinfo = smdInfo(smdFile)
+    platform = smdinfo.configs['platform'][0]
+    spmats = smdinfo.get_spmatrix()
     if spmat_subset:
         spmats = list(set(spmats).intersection(spmat_subset))
     Best_Fscore = {}
 
     for spmat in spmats:
-        adata = Load_spt_to_AnnData(sptFile, spmat, platform=platform, loadDeconv=True)
-        clu_mtds = sptinfo.get_clu_methods(spmat)
-        dcv_mtds = sptinfo.get_dcv_methods(spmat)
+        adata = Load_smd_to_AnnData(smdFile, spmat, loadDeconv=True, platform=platform)
+        clu_mtds = smdinfo.get_clu_methods(spmat)
+        dcv_mtds = smdinfo.get_dcv_methods(spmat)
         if clu_subset:
             clu_mtds = list(set(clu_mtds).intersection(clu_subset))
         if dcv_subset:
@@ -190,8 +190,8 @@ def spTRS_findgroups(sptFile, beta=1, greedy=1, spmat_subset=None, clu_subset=No
     return Best_Fscore
 
 
-def spTRS_Find_bestGroup(sptFile, beta=1, greedy=1, spmat_subset=None, clu_subset=None, dcv_subset=None):
-    Best_Fscore = spTRS_findgroups(sptFile, beta, greedy, spmat_subset, clu_subset, dcv_subset)
+def Despot_Find_bestGroup(smdFile, beta=1, greedy=1, spmat_subset=None, clu_subset=None, dcv_subset=None):
+    Best_Fscore = Despot_findgroups(smdFile, beta, greedy, spmat_subset, clu_subset, dcv_subset)
     Best_dict = {}
 
     # find the best method chains
@@ -206,12 +206,12 @@ def spTRS_Find_bestGroup(sptFile, beta=1, greedy=1, spmat_subset=None, clu_subse
                     Best_dict[ct] = (mtd_Fscore.loc[ct, 'F-score'], mtd_Fscore.loc[ct, 'domain'], mtd)
 
     # check the domains if we need to extend
-    sptinfo = sptInfo(sptFile)
-    platform = sptinfo.configs['platform'][0]
+    smdinfo = smdInfo(smdFile)
+    platform = smdinfo.configs['platform'][0]
     for ct in Best_dict.keys():
         f1score, domains, mtd = Best_dict[ct]
         spmat, dcv, clu = mtd.split('+')
-        adata = Load_spt_to_AnnData(sptFile, spmat, platform=platform, loadDeconv=True)
+        adata = Load_smd_to_AnnData(smdFile, spmat, loadDeconv=True, platform=platform)
         if type(domains) == int:
             domain_list = [domains]
         else:
@@ -253,7 +253,7 @@ def spTRS_Find_bestGroup(sptFile, beta=1, greedy=1, spmat_subset=None, clu_subse
                 break
         Best_dict[ct] = (f1score, tuple(domain_list), mtd)
 
-    # Save_spt_from_BestDict(sptFile, Best_dict)
+    # Save_spt_from_BestDict(smdFile, Best_dict)
     # find markers for each region
     # for cell_type in Best_dict.keys():
     #     region = Best_dict[cell_type][1]
@@ -261,19 +261,19 @@ def spTRS_Find_bestGroup(sptFile, beta=1, greedy=1, spmat_subset=None, clu_subse
     #     clu_mtd = mtd.split('+')[2]
     #     dcv_mtd = mtd.split('+')[1]
     #     dct_mtd = mtd.split('+')[0]
-    #     adata = Load_spt_to_AnnData(sptFile, count=dct_mtd)
+    #     adata = Load_spt_to_AnnData(smdFile, count=dct_mtd)
     #     sc.tl.filter_rank_genes_groups(adata, key=region, groupby=clu_mtd)
     return Best_dict, Best_Fscore
 
 
-def Pipline_findgroups(sptFile, pipline, beta=1, greedy=1):
-    sptinfo = sptInfo(sptFile)
-    platform = sptinfo.configs['platform'][0]
+def Pipline_findgroups(smdFile, pipline, beta=1, greedy=1):
+    smdinfo = smdInfo(smdFile)
+    platform = smdinfo.configs['platform'][0]
     spmat = 'matrix'
-    clu_mtds = sptinfo.get_clu_methods(spmat)
-    dcv_mtds = sptinfo.get_dcv_methods(spmat)
+    clu_mtds = smdinfo.get_clu_methods(spmat)
+    dcv_mtds = smdinfo.get_dcv_methods(spmat)
     BST = None
-    adata = Load_spt_to_AnnData(sptFile, spmat, platform=platform, loadDeconv=True)
+    adata = Load_smd_to_AnnData(smdFile, spmat, loadDeconv=True, platform=platform)
     if pipline in ['CARD']:  # CARD uses the dominant cell-type as clusters
         cell_prop = adata.obsm[pipline]
         dominant_cell = cell_prop.idxmax(axis=1).astype('category')
@@ -369,17 +369,17 @@ def Fscore_Comparison(Best_dict: dict, Best_Fscore):
     return pip_res
 
 
-def Fscore_Comparison_pip(sptFile, has_ground_truth=False):
-    sptinfo = sptInfo(sptFile)
-    map_chains = sptinfo.get_map_chains()
+def Fscore_Comparison_pip(smdFile, has_ground_truth=False):
+    smdinfo = smdInfo(smdFile)
+    map_chains = smdinfo.get_map_chains()
     pip_names = ['Seurat', 'Giotto', 'CARD']
     pip_res = pd.DataFrame(map_chains.iloc[:, 0])
     pip_res.columns = ['Despot']
     for pip in pip_names:
-        pip_perf = Pipline_findgroups(sptFile, pip, beta=1, greedy=1)
+        pip_perf = Pipline_findgroups(smdFile, pip, beta=1, greedy=1)
         pip_res[pip] = pip_perf.iloc[:, 0]
     if has_ground_truth:
-        pip_gt, _ = spTRS_Find_bestGroup(sptFile, beta=1, greedy=1, clu_subset=['ground_truth'])
+        pip_gt, _ = Despot_Find_bestGroup(smdFile, beta=1, greedy=1, clu_subset=['ground_truth'])
         col = ["cell-type", "F1-score", "domain", "dct", "dcv", "clu"]
         best_df = pd.DataFrame(columns=col)
         cell_types = pip_gt.keys()
@@ -393,12 +393,12 @@ def Fscore_Comparison_pip(sptFile, has_ground_truth=False):
         pip_res['ground_truth'] = best_df['F1-score']
     return pip_res.T
 
-def Show_Comparison(sptFile,folder, figsize=(3.5,3), compare='platform',cell_type=None, title='F1-score', has_ground_truth=False):
+def Show_Comparison(smdFile,folder, figsize=(3.5,3), compare='platform',cell_type=None, title='F1-score', has_ground_truth=False):
     from vsl.palette import Set_palette
     plt.rcParams["font.sans-serif"] = ["Arial"]
     plt.rcParams["axes.unicode_minus"] = False
     plt.rcParams['font.size'] = 14
-    pip_res = Fscore_Comparison_pip(sptFile, has_ground_truth)
+    pip_res = Fscore_Comparison_pip(smdFile, has_ground_truth)
     comp_mtds = ['Giotto', 'Seurat', 'CARD', 'Despot']
     if has_ground_truth:
         comp_mtds= ['Giotto', 'Seurat', 'CARD', 'ground_truth', 'Despot']
@@ -459,7 +459,7 @@ def Show_Comparison(sptFile,folder, figsize=(3.5,3), compare='platform',cell_typ
 
 
 # 3D landscape for SCSPs
-def Show_3D_landscape(sptFile, folder=None, cell_types=None, sf=None, pipline=None,imgPath=None, alpha=0.1):
+def Show_3D_landscape(smdFile, folder=None, cell_types=None, sf=None, pipline=None,imgPath=None, alpha=0.1):
     from mpl_toolkits.mplot3d import Axes3D
     from vsl.boundary import boundary_extract, show_edge
     from PIL import Image
@@ -467,30 +467,30 @@ def Show_3D_landscape(sptFile, folder=None, cell_types=None, sf=None, pipline=No
     from vsl.palette import Set_palette
     plt.rcParams["font.sans-serif"] = ["Arial"]
     plt.rcParams["axes.unicode_minus"] = False
-    sptinfo = sptInfo(sptFile)
-    platform = sptinfo.get_platform()
+    smdinfo = smdInfo(smdFile)
+    platform = smdinfo.get_platform()
     print("Platform: {0}".format(platform))
     # handle images
-    if sptinfo.get_platform() != 'ST':
-        img = Image.open(sptinfo.get_imgPath('low'))
+    if smdinfo.get_platform() != 'ST':
+        img = Image.open(smdinfo.get_imgPath('low'))
         img0 = np.array(img) / 255
         img0[img0 > 1] = 1
         w, h = img.height, img.width
 
         # handle coordinates
-        coords = sptinfo.get_coords()
+        coords = smdinfo.get_coords()
         if sf is None:
-            sf = sptinfo.get_sf(solution='low')
+            sf = smdinfo.get_sf(solution='low')
         x, y = coords.loc[:, 'image_row'] * sf, coords.loc[:, 'image_col'] * sf
-        xmin, xmax = int(np.min(x) - 60), int(np.max(x) + 60)
-        ymin, ymax = int(np.min(y) - 60), int(np.max(y) + 60)
+        xmin, xmax = int(np.min(x) - 30), int(np.max(x) + 30)
+        ymin, ymax = int(np.min(y) - 30), int(np.max(y) + 30)
         x -= xmin
         y -= ymin
         imgX, imgY = ogrid[0:(xmax - xmin), 0:(ymax - ymin)]
     else:
         img = Image.open(imgPath)
         img0 = np.array(img) / 255
-        coords = sptinfo.get_coords()
+        coords = smdinfo.get_coords()
         w, h = img.width, img.height
         sf = img.height / (np.max(coords.loc[:, 'image_col'])+1.5 - np.min(coords.loc[:, 'image_col']))
         x, y = (np.max(coords.loc[:, 'image_col'])+1.5-coords.loc[:, 'image_col'])*sf, (coords.loc[:, 'image_row']-0.2)*sf
@@ -502,13 +502,13 @@ def Show_3D_landscape(sptFile, folder=None, cell_types=None, sf=None, pipline=No
 
     # handle the compared pipline or Despot
     # the full cell-types for SCSPs
-    full_ct = list(sptinfo.get_map_chains().index)
+    full_ct = list(smdinfo.get_map_chains().index)
     full_ct.sort()
     if pipline is None:
-        Best_df = sptinfo.get_map_chains()
+        Best_df = smdinfo.get_map_chains()
         figname = folder + '/landscape.svg'
     else:
-        Best_df = Pipline_findgroups(sptFile, pipline, beta=1, greedy=1)
+        Best_df = Pipline_findgroups(smdFile, pipline, beta=1, greedy=1)
         Best_df['dct'] = 'matrix'
         Best_df['dcv'] = pipline
         Best_df['clu'] = pipline
@@ -534,11 +534,11 @@ def Show_3D_landscape(sptFile, folder=None, cell_types=None, sf=None, pipline=No
             domain = (domain,)
         dct_mtd, dcv_mtd, clu_mtd = Best_item['dct'], Best_item['dcv'], Best_item['clu']
         if clu_mtd in ['CARD']:   # if use the dominant cell-type as cluster, we directly generate it
-            adata = Load_spt_to_AnnData(sptFile, 'matrix', platform=platform, loadDeconv=True)
+            adata = Load_smd_to_AnnData(smdFile, 'matrix', loadDeconv=True, platform=platform)
             cell_prop = adata.obsm[clu_mtd]
             idents = cell_prop.idxmax(axis=1).astype('category')
         else:
-            idents = sptinfo.get_idents(dct_mtd)[clu_mtd]
+            idents = smdinfo.get_idents(dct_mtd)[clu_mtd]
 
         spot3D = pd.concat([x, y, idents], axis=1)
         spot3D.columns = ['X', 'Y', 'level']
@@ -591,7 +591,7 @@ def Show_3D_landscape(sptFile, folder=None, cell_types=None, sf=None, pipline=No
         pts = np.array(spot3D[['X', 'Y']])
         edges, centers = boundary_extract(pts, alpha, err=10e-5)
         spot3D['Z'] = np.ones_like(spot3D.index) * z
-        if sptinfo.get_platform() == 'ST':
+        if smdinfo.get_platform() == 'ST':
             s = 30
         else:
             s=10
@@ -599,7 +599,7 @@ def Show_3D_landscape(sptFile, folder=None, cell_types=None, sf=None, pipline=No
                       np.array(spot3D['Y'], dtype=float),
                       np.array(spot3D['Z'], dtype=float),
                       color=color, label=cell_type, s=s, alpha=1)
-        if sptinfo.get_platform() == 'ST':
+        if smdinfo.get_platform() == 'ST':
             sel_line = np.random.randint(len(spot3D.index), size=max(round(len(spot3D.index) / 10), 5))
         else:
             sel_line = np.random.randint(len(spot3D.index), size=max(round(len(spot3D.index) / 20), 5))
@@ -609,7 +609,7 @@ def Show_3D_landscape(sptFile, folder=None, cell_types=None, sf=None, pipline=No
             zz = spot3D['Z'][item]
             ax1.plot([x, x], [y, y], [zz, 0], color=color, alpha=0.5, linewidth=1.25)
         show_edge(edges, ax1, z=0, color=color, linewidth=2, alpha=1, label=None)
-    if sptinfo.get_platform() != 'ST':
+    if smdinfo.get_platform() != 'ST':
         ax1.plot_surface(imgX, imgY, np.atleast_2d(0), rstride=10, cstride=10, facecolors=img0[xmin:xmax, ymin:ymax],
                      alpha=0.5, linewidth=0)
     else:
@@ -631,15 +631,15 @@ def Show_3D_landscape(sptFile, folder=None, cell_types=None, sf=None, pipline=No
     fig.savefig(figname, dpi=400)
 
 
-def Show_best_group(sptFile, cell_type, fscore, domain, mtd_chain: str, figname=None, save=True):
-    info = sptInfo(sptFile)
+def Show_best_group(smdFile, cell_type, fscore, domain, mtd_chain: str, figname=None, save=True):
+    info = smdInfo(smdFile)
     platform = info.configs['platform'][0]
     if platform != 'ST':
         platform = '10X_Visium'
     mtds = mtd_chain.split('+')
     dct_mtd, dcv_mtd, clu_mtd = mtds[0], mtds[1], mtds[2]
     abd_name = dct_mtd + '_' + dcv_mtd + '_' + clu_mtd + '_' + cell_type
-    adata = Load_spt_to_AnnData(sptFile, h5data=dct_mtd, loadDeconv=True, platform=platform)
+    adata = Load_smd_to_AnnData(smdFile, h5data=dct_mtd, loadDeconv=True, platform=platform)
     adata.obs[abd_name] = adata.obsm[dcv_mtd][cell_type]
     fig = Show_matched_domains(adata, clu_mtd, dcv_mtd, domain, cell_type, fscore, platform=platform)
     if save:
@@ -649,11 +649,11 @@ def Show_best_group(sptFile, cell_type, fscore, domain, mtd_chain: str, figname=
     return fig
 
 
-def Show_bash_best_group(sptFile, folder, Best_dict=None):
+def Show_bash_best_group(smdFile, folder, Best_dict=None):
     if not os.path.isdir(folder):
         os.makedirs(folder)
-    sptinfo = sptInfo(sptFile)
-    Best_df = sptinfo.get_map_chains()
+    smdinfo = smdInfo(smdFile)
+    Best_df = smdinfo.get_map_chains()
     cell_types = []
     if Best_dict is not None:
         cell_types = list(Best_dict.keys())
@@ -677,17 +677,17 @@ def Show_bash_best_group(sptFile, folder, Best_dict=None):
         mtd_chain = dct_mtd + '+' + dcv_mtd + '+' + clu_mtd
         fig_cell_type = cell_type.replace('/', '.')  # illegal `/` in file path
         figname = folder + "/" + fig_cell_type + ".svg"
-        fig = Show_best_group(sptFile, cell_type, fscore, domain, mtd_chain, figname, save=True)
+        fig = Show_best_group(smdFile, cell_type, fscore, domain, mtd_chain, figname, save=True)
 
 
-def Show_row_best_group(sptFile, folder, cell_types, file_name='domains1.svg', imgPath=None, titles=None, cmap='cividis', ap=100):
+def Show_row_best_group(smdFile, folder, cell_types, file_name='domains1.svg', imgPath=None, titles=None, cmap='cividis', ap=100):
     if not os.path.isdir(folder):
         os.makedirs(folder)
-    sptinfo = sptInfo(sptFile)
-    platform = sptinfo.get_platform()
+    smdinfo = smdInfo(smdFile)
+    platform = smdinfo.get_platform()
     if platform != 'ST':
         platform = '10X_Visium'
-    Best_df = sptinfo.get_map_chains()
+    Best_df = smdinfo.get_map_chains()
     nct = len(cell_types)
     if platform == '10X_Visium':
         fig, axs = plt.subplots(1, nct, figsize=(3 * nct, 4))
@@ -704,19 +704,19 @@ def Show_row_best_group(sptFile, folder, cell_types, file_name='domains1.svg', i
         domain = Best_item['domain']
         f1score = Best_item['F1-score']
         dct_mtd, dcv_mtd, clu_mtd = Best_item['dct'], Best_item['dcv'], Best_item['clu']
-        adata = Load_spt_to_AnnData(sptFile, h5data=dct_mtd, loadDeconv=True, platform=platform)
+        adata = Load_smd_to_AnnData(smdFile, h5data=dct_mtd, loadDeconv=True, platform=platform)
         Ax_prop_domains(adata, clu_mtd, dcv_mtd, domain, cell_type, axs[i],
                         title=title, f1score=f1score, platform=platform, imgPath=imgPath, cmap=cmap, ap=ap)
     figname = folder + "/"+file_name
     fig.savefig(figname, dpi=400)
 
 
-def Show_row_marker_genes(sptFile, folder, genes, cell_types=None, spmatrix=None,figname='gene.svg', cmap='coolwarm'):
+def Show_row_marker_genes(smdFile, folder, genes, cell_types=None, spmatrix=None,figname='gene.svg', cmap='coolwarm'):
     if not os.path.isdir(folder):
         os.makedirs(folder)
-    sptinfo = sptInfo(sptFile)
-    Best_df = sptinfo.get_map_chains()
-    platform = sptinfo.get_platform()
+    smdinfo = smdInfo(smdFile)
+    Best_df = smdinfo.get_map_chains()
+    platform = smdinfo.get_platform()
     print(platform)
     if platform != 'ST':
         platform = '10X_Visium'
@@ -734,7 +734,7 @@ def Show_row_marker_genes(sptFile, folder, genes, cell_types=None, spmatrix=None
             dct_mtd, dcv_mtd, clu_mtd = Best_item['dct'], Best_item['dcv'], Best_item['clu']
         else:
             dct_mtd = spmatrix
-        adata_sp = Load_spt_to_AnnData(sptFile, h5data=dct_mtd, platform=platform)
+        adata_sp = Load_smd_to_AnnData(smdFile, h5data=dct_mtd, platform=platform)
         sc.pp.normalize_total(adata_sp)
         sc.pp.log1p(adata_sp)
         Ax_expr_spgenes(adata_sp, gene, ax=axs[i], platform=platform, title=gene, cmap=cmap)
@@ -742,13 +742,13 @@ def Show_row_marker_genes(sptFile, folder, genes, cell_types=None, spmatrix=None
     fig.savefig(figname, dpi=400)
 
 
-def Show_row_scmarkers(sptFile, folder, genes, figname='sc_gene.svg'):
+def Show_row_scmarkers(smdFile, folder, genes, figname='sc_gene.svg'):
     if not os.path.isdir(folder):
         os.makedirs(folder)
     ngenes = len(genes)
     fig, axs = plt.subplots(1, ngenes, figsize=(3 * ngenes, 2.6))
     plt.subplots_adjust(wspace=0.1, hspace=0)
-    adata_sc = Load_spt_sc_to_AnnData(sptFile, h5data='scRNA_seq')
+    adata_sc = Load_smd_sc_to_AnnData(smdFile, h5data='scRNA_seq')
     from clu.Cluster_leiden import Spatial_Cluster_Analysis
     adata_sc = Spatial_Cluster_Analysis(adata_sc)
     for i in range(ngenes):
@@ -760,18 +760,18 @@ def Show_row_scmarkers(sptFile, folder, genes, figname='sc_gene.svg'):
     fig.savefig(figname, dpi=400)
 
 
-def spTRS_self_correlation(sptFile, alpha=1, method='pearsonr'):
+def Despot_self_correlation(smdFile, alpha=1, method='pearsonr'):
     # using scipy to calculate pearson's r or spearman r
     from scipy.stats import pearsonr, spearmanr
     if method == 'spearmanr':
         corr_mtd = spearmanr
     else:
         corr_mtd = pearsonr
-    sptinfo = sptInfo(sptFile)
-    h5datas = sptinfo.get_spmatrix()
+    smdinfo = smdInfo(smdFile)
+    h5datas = smdinfo.get_spmatrix()
     for h5data in h5datas:
-        adata = Load_spt_to_AnnData(sptFile, h5data)
-        dcv_mtds = sptinfo.get_dcv_methods(h5data)
+        adata = Load_smd_to_AnnData(smdFile, h5data)
+        dcv_mtds = smdinfo.get_dcv_methods(h5data)
         for dcv in dcv_mtds:
             geometry = [Point(xy) for xy in zip(adata.obs['array_row'], adata.obs['array_col'])]
             # first calculate global moransI
@@ -797,12 +797,12 @@ def spTRS_self_correlation(sptFile, alpha=1, method='pearsonr'):
                     corr[x, y], p_val[x, y] = corr_mtd(comp.iloc[:, x], comp.iloc[:, y])
             coef = pd.DataFrame(coef, index=comp.columns, columns=comp.columns)
 
-            # Save_spt_from_corrcoef(sptFile, coef, dcv, h5data=h5data)
+            # Save_spt_from_corrcoef(smdFile, coef, dcv, h5data=h5data)
 
 
-def spTRS_combine_best_group(sptFile, Best_dict=None):
-    sptinfo = sptInfo(sptFile)
-    Best_df = sptinfo.get_map_chains()
+def Despot_combine_best_group(smdFile, Best_dict=None):
+    smdinfo = smdInfo(smdFile)
+    Best_df = smdinfo.get_map_chains()
     cell_types = []
     if Best_dict is not None:
         cell_types = list(Best_dict.keys())
@@ -811,9 +811,9 @@ def spTRS_combine_best_group(sptFile, Best_dict=None):
             cell_types = list(Best_df.index)
             print(cell_types)
     abundance = pd.DataFrame()
-    sptinfo = sptInfo(sptFile)
-    dct_mtds = sptinfo.get_spmatrix()
-    adatas = list(map(lambda dct: Load_spt_to_AnnData(sptFile, h5data=dct, loadDeconv=True), dct_mtds))
+    smdinfo = smdInfo(smdFile)
+    dct_mtds = smdinfo.get_spmatrix()
+    adatas = list(map(lambda dct: Load_smd_to_AnnData(smdFile, h5data=dct, loadDeconv=True), dct_mtds))
     adatas = dict(zip(dct_mtds, adatas))
     for cell_type in cell_types:
         if Best_dict is not None:
@@ -835,8 +835,8 @@ def spTRS_combine_best_group(sptFile, Best_dict=None):
     return comp, y_lag
 
 
-def spTRS_group_correlation(sptFile, Best_dict=None, alpha=1):
-    comp, y_lag = spTRS_combine_best_group(sptFile, Best_dict)
+def Despot_group_correlation(smdFile, Best_dict=None, alpha=1):
+    comp, y_lag = Despot_combine_best_group(smdFile, Best_dict)
     # set alpha=0 to cancel the efficiency of neighbor expressions
     comp = comp + alpha * y_lag
     corr, p_val = do_corr(comp, "pearsonr")
@@ -863,10 +863,10 @@ ct3 = ['Normal Epithelial', 'Cancer Epithelial', 'CAFs', 'T-cells', 'Myeloid']
 ct4 =['Cancer Epithelial', 'T-cells', 'CAFs', 'Plasmablasts',
        'Myeloid', 'Endothelial', 'PVL', 'Normal Epithelial','B-cells']
 
-def Despot_pair_correlation(sptFile1, sptFile2, alpha=1, ct=None):
-    comp1, y_lag1 = spTRS_combine_best_group(sptFile1)
+def Despot_pair_correlation(smdFile1, smdFile2, alpha=1, ct=None):
+    comp1, y_lag1 = Despot_combine_best_group(smdFile1)
     comp1 = comp1 + alpha * y_lag1
-    comp2, y_lag2 = spTRS_combine_best_group(sptFile2)
+    comp2, y_lag2 = Despot_combine_best_group(smdFile2)
     comp2 = comp2 + alpha * y_lag2
     corr, p_val = do_corr(comp1, comp2)
     idx = corr.columns
@@ -906,7 +906,7 @@ def do_corr(comp, comp0=None, method="pearsonr"):
     return corr, p_val
 
 
-def heatmap(data, row_labels, col_labels, ax=None,
+def heatmap(data, row_labels=None, col_labels=None, ax=None,
             cbar_kw=None, cbarlabel="", **kwargs):
     """
     Create a heatmap from a numpy array and two lists of labels.
@@ -944,8 +944,9 @@ def heatmap(data, row_labels, col_labels, ax=None,
     # cbar.ax.set_ylabel(cbarlabel, rotation=-90, va="bottom")
 
     # Show all ticks and label them with the respective list entries.
-    ax.set_xticks(np.arange(data.shape[1]), labels=row_labels)
-    if len(col_labels) > 0:
+    if row_labels:
+        ax.set_xticks(np.arange(data.shape[1]), labels=row_labels)
+    if col_labels and len(col_labels) > 0:
         ax.set_yticks(np.arange(data.shape[0]), labels=col_labels)
 
     # Let the horizontal axes labeling appear on top.
@@ -961,7 +962,7 @@ def heatmap(data, row_labels, col_labels, ax=None,
 
     ax.set_xticks(np.arange(data.shape[1]+1)-.5, minor=True)
     ax.set_yticks(np.arange(data.shape[0]+1)-.5, minor=True)
-    # ax.grid(which="minor", color="grey", linestyle='-', linewidth=1)
+    ax.grid(which="minor", color="white", linestyle='--', linewidth=1)
     ax.tick_params(which="minor", bottom=False, left=False)
 
     return im
@@ -1057,11 +1058,11 @@ def Show_self_correlation(corr, folder, figsize=(7.5, 7.5)):
     fig.savefig(folder + '/corr.svg', dpi=400)
 
 
-def Generate_New_idents(sptFile, Best_dict):
+def Generate_New_idents(smdFile, Best_dict):
     cell_types = list(Best_dict.keys())
-    sptinfo = sptInfo(sptFile)
-    dct_mtds = sptinfo.get_spmatrix()
-    adatas = list(map(lambda dct: Load_spt_to_AnnData(sptFile, h5data=dct), dct_mtds))
+    smdinfo = smdInfo(smdFile)
+    dct_mtds = smdinfo.get_spmatrix()
+    adatas = list(map(lambda dct: Load_smd_to_AnnData(smdFile, h5data=dct), dct_mtds))
     adatas = dict(zip(dct_mtds, adatas))
     new_idents = pd.DataFrame(index=adatas['matrix'].obs_names)
     # set all domain to NA
@@ -1083,12 +1084,12 @@ def Generate_New_idents(sptFile, Best_dict):
 
 
 # generate venn graph for multimodal integration analysis
-def Gen_venn(sptFile, folder, sptFile2=None, Best_dict=None, show_genes=2, cell_filter=None, pval=10e-6, effect=0.5):
-    sptinfo = sptInfo(sptFile)
-    platform = sptinfo.configs['platform'][0]
+def Gen_venn(smdFile, folder, smdFile2=None, Best_dict=None, show_genes=2, cell_filter=None, pval=10e-6, effect=0.5):
+    smdinfo = smdInfo(smdFile)
+    platform = smdinfo.configs['platform'][0]
     if platform != 'ST':
         platform = '10X_Visium'
-    Best_df = sptinfo.get_map_chains()
+    Best_df = smdinfo.get_map_chains()
     cell_types = []
     if Best_dict is not None:
         cell_types = list(Best_dict.keys())
@@ -1096,19 +1097,19 @@ def Gen_venn(sptFile, folder, sptFile2=None, Best_dict=None, show_genes=2, cell_
         if len(Best_df) > 0:
             cell_types = list(Best_df.index)
 
-    dct_mtds = sptinfo.get_spmatrix()
-    adatas = list(map(lambda dct: Load_spt_to_AnnData(sptFile, h5data=dct, platform=platform), dct_mtds))
+    dct_mtds = smdinfo.get_spmatrix()
+    adatas = list(map(lambda dct: Load_smd_to_AnnData(smdFile, h5data=dct, platform=platform), dct_mtds))
     for i in range(len(adatas)):
         sc.pp.log1p(adatas[i])
     adatas = dict(zip(dct_mtds, adatas))
 
     # load the single cell data
-    adata_sc = Load_spt_sc_to_AnnData(sptFile)
+    adata_sc = Load_smd_sc_to_AnnData(smdFile)
     from clu.Cluster_leiden import Spatial_Cluster_Analysis
     adata_sc = Spatial_Cluster_Analysis(adata_sc)
     adata_sc0 = adata_sc.copy()
-    if sptFile2 is not None:
-        adata_sc1 = Load_spt_sc_to_AnnData(sptFile2)
+    if smdFile2 is not None:
+        adata_sc1 = Load_smd_sc_to_AnnData(smdFile2)
         adata_sc1 = Spatial_Cluster_Analysis(adata_sc1)
         adata_sc2 = adata_sc1.copy()
     inter_genes = {}
@@ -1125,7 +1126,7 @@ def Gen_venn(sptFile, folder, sptFile2=None, Best_dict=None, show_genes=2, cell_
             domain = Best_item['domain']
             dct_mtd, dcv_mtd, clu_mtd = Best_item['dct'], Best_item['dcv'], Best_item['clu']
         adata_sp = adatas[dct_mtd]
-        if sptFile2 is not None:
+        if smdFile2 is not None:
             inter_gene = Gen_venn3(adata_sp, adata_sc, adata_sc2, domain, clu_mtd, cell_type, cell_type, folder)
         else:
             inter_gene = Gen_venn2(adata_sp, adata_sc, domain, clu_mtd, cell_type, folder, pval, effect)
@@ -1229,12 +1230,12 @@ def Gen_venn3(adata_sp, adata_sc1, adata_sc2, domain, clu_mtd, cell_type1, cell_
     return inter_genes
 
 
-def spTRS_DE(sptFile, Best_dict, cell_type1, cell_type2):
-    # use sptinfo to load decontamination methods
-    sptinfo = sptInfo(sptFile)
-    platform = sptinfo.configs['platform'][0]
-    dct_mtds = sptinfo.get_spmatrix()
-    adatas = list(map(lambda dct: Load_spt_to_AnnData(sptFile, h5data=dct, platform=platform), dct_mtds))
+def Despot_DE(smdFile, Best_dict, cell_type1, cell_type2):
+    # use smdinfo to load decontamination methods
+    smdinfo = smdInfo(smdFile)
+    platform = smdinfo.configs['platform'][0]
+    dct_mtds = smdinfo.get_spmatrix()
+    adatas = list(map(lambda dct: Load_smd_to_AnnData(smdFile, h5data=dct, platform=platform), dct_mtds))
     adatas = dict(zip(dct_mtds, adatas))
     Best_item1 = Best_dict[cell_type1]
     Best_item2 = Best_dict[cell_type2]

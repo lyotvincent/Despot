@@ -8,7 +8,7 @@ source("sptranr/R/_benchmark.R")
 
 # decoding params
 params <- fromJSON(file = "params.json")
-sptFile <- params$sptFile
+smdFile <- params$smdFile
 imgdir <- paste0(params$dataPath, "/spatial")
 for(decont in params$Decontamination){
   h5data <- "matrix"
@@ -19,7 +19,7 @@ for(decont in params$Decontamination){
     h5data <- "SPCS_mat"
   }
 
-  mark <- Benchmark_Clustering(sptFile, h5data)
-  Save_spt_from_Benchmark_clu(sptFile, h5data, mark)
+  mark <- Benchmark_Clustering(smdFile, h5data)
+  Save_smd_from_Benchmark_clu(smdFile, h5data, mark)
   message(paste0("Benchmark for clustering has been saved in ", h5data, "/benchmark/cluster."))
 }

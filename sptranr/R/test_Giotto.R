@@ -1,7 +1,7 @@
 library(dplyr)
 library(Giotto)
 library(patchwork)
-library(tidyverse)  # 假设大家都会分析单细胞数据了，这个假设坏不坏，坏
+library(tidyverse)
 library(ggplot2)
 library(cowplot)
 library(Seurat)

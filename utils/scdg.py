@@ -43,14 +43,14 @@ class VAE(nn.Module):
         return x_reconst, mu, log_var
 
 
-def Make_References(sptFile, count_size=3000,
+def Make_References(smdFile, count_size=3000,
                     h_dim=400, z_dim=20,
                     num_epochs=1000, learning_rate=1e-3,
                     epoch_thresh=1e-5, ref_size=25, use_genes=None):
     # 设备配置
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(device)
-    scdata = Load_spt_sc_to_AnnData(sptFile)
+    scdata = Load_smd_sc_to_AnnData(smdFile)
     if use_genes is not None:
         scdata = scdata[:, use_genes]
         count_size = len(use_genes)

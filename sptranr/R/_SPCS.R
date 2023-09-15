@@ -373,47 +373,47 @@ Decontaminate_SPCS <- function(sce, gene.zero.cutoff = 0.7, gene.var.cutoff = 0.
   return(SPCS_obj)
 }
 
-Save_spt_from_SPCS <- function(sptFile, SPCS_obj){
+Save_smd_from_SPCS <- function(smdFile, SPCS_obj){
   h5data <- "SPCS_mat"
 
-  rhdf5::h5createGroup(sptFile, h5data)
+  rhdf5::h5createGroup(smdFile, h5data)
   # create barcodes
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = colnames(SPCS_obj),
-                     sptloc = paste0(h5data, "/barcodes"),
+                     smdloc = paste0(h5data, "/barcodes"),
                      mode = "character")
 
   # create data, indices, indptr, shape
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = SPCS_obj@x,
-                     sptloc = paste0(h5data, "/data"),
+                     smdloc = paste0(h5data, "/data"),
                      mode = "double")
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = SPCS_obj@i,
-                     sptloc = paste0(h5data, "/indices"),
+                     smdloc = paste0(h5data, "/indices"),
                      mode = "integer")
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = SPCS_obj@p,
-                     sptloc = paste0(h5data, "/indptr"),
+                     smdloc = paste0(h5data, "/indptr"),
                      mode = "integer")
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = SPCS_obj@Dim,
-                     sptloc = paste0(h5data, "/shape"),
+                     smdloc = paste0(h5data, "/shape"),
                      mode = "integer")
 
   # create features
-  rhdf5::h5createGroup(sptFile, paste0(h5data, "/features"))
-  Create_spt_array1d(sptFile,
+  rhdf5::h5createGroup(smdFile, paste0(h5data, "/features"))
+  Create_smd_array1d(smdFile,
                      arr = rownames(SPCS_obj),
-                     sptloc = paste0(h5data, "/features/name"),
+                     smdloc = paste0(h5data, "/features/name"),
                      mode = "character")
-  rhdf5::h5createGroup(sptFile, paste0(h5data, "/features/is_HVG"))
+  rhdf5::h5createGroup(smdFile, paste0(h5data, "/features/is_HVG"))
 
   # create `idents`
-  rhdf5::h5createGroup(sptFile, paste0(h5data, "/idents"))
+  rhdf5::h5createGroup(smdFile, paste0(h5data, "/idents"))
   # create `deconv`
-  rhdf5::h5createGroup(sptFile, paste0(h5data, "/deconv"))
+  rhdf5::h5createGroup(smdFile, paste0(h5data, "/deconv"))
   # create `benchmark`
-  rhdf5::h5createGroup(sptFile, paste0(h5data, "/benchmark"))
+  rhdf5::h5createGroup(smdFile, paste0(h5data, "/benchmark"))
 }
 

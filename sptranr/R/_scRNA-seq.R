@@ -148,62 +148,62 @@ Analysis_scRNA_seq_noanno <- function(sce, top.HVGs = 3000,
 
 
 # Since the TabulaData is too large, we store the preprocessed scRNA-seq Data
-Save_scRNAseq_to_spt <- function(sptFile, sce){
+Save_scRNAseq_to_smd <- function(smdFile, sce){
   # create group for scRNA-seq
-  rhdf5::h5createGroup(sptFile, "scRNA_seq")
+  rhdf5::h5createGroup(smdFile, "scRNA_seq")
 
   # create DataSets for matrix
   mat <- sce@assays@data@listData$counts
   mat <- Matrix(mat, nrow = dim(mat)[1], ncol = dim(mat)[2], dimnames = dimnames(mat))
 
   # save 1d weights
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = mat@x,
-                     sptloc = "scRNA_seq/data",
+                     smdloc = "scRNA_seq/data",
                      mode = 'integer')
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = mat@i,
-                     sptloc = "scRNA_seq/indices",
+                     smdloc = "scRNA_seq/indices",
                      mode = 'integer')
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = mat@p,
-                     sptloc = "scRNA_seq/indptr",
+                     smdloc = "scRNA_seq/indptr",
                      mode = 'integer')
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = mat@Dim,
-                     sptloc = "scRNA_seq/shape",
+                     smdloc = "scRNA_seq/shape",
                      mode = 'integer')
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = colnames(mat),
-                     sptloc = "scRNA_seq/barcodes",
+                     smdloc = "scRNA_seq/barcodes",
                      mode = 'character')
 
   # create features
-  h5createGroup(sptFile, "scRNA_seq/features")
+  h5createGroup(smdFile, "scRNA_seq/features")
 
   # save original names
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = toupper(rownames(mat)),
-                     sptloc = "scRNA_seq/features/name",
+                     smdloc = "scRNA_seq/features/name",
                      mode = 'character')
 
   # save HVGs
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = toupper(sce@metadata$HVGs),
-                     sptloc = "scRNA_seq/features/HVGs",
+                     smdloc = "scRNA_seq/features/HVGs",
                      mode = 'character')
 
   # create idents
-  h5createGroup(sptFile, "scRNA_seq/idents")
+  h5createGroup(smdFile, "scRNA_seq/idents")
 
   # save annotation and index
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = sce@colData@rownames,
-                     sptloc = "scRNA_seq/idents/index",
+                     smdloc = "scRNA_seq/idents/index",
                      mode = 'character')
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = as.character(colLabels(sce)),
-                     sptloc = "scRNA_seq/idents/annotation",
+                     smdloc = "scRNA_seq/idents/annotation",
                      mode = 'character')
 }
 
@@ -258,8 +258,8 @@ Load_ref_to_SCE <- function(refdir){
   return(sce)
 }
 
-Load_sptsc_to_SCE <- function(sptFile, h5data = "scRNA_seq"){
-  h5_obj <- rhdf5::h5read(sptFile, h5data)
+Load_smdsc_to_SCE <- function(smdFile, h5data = "scRNA_seq"){
+  h5_obj <- rhdf5::h5read(smdFile, h5data)
   dat <- sparseMatrix(i = h5_obj$indices[] + 1,
                       p = h5_obj$indptr[],
                       x = as.numeric(h5_obj$data[]),
@@ -277,9 +277,9 @@ Load_sptsc_to_SCE <- function(sptFile, h5data = "scRNA_seq"){
   return(sce)
 }
 
-Load_sptsc_to_Seurat <- function(sptFile, h5data = "scRNA_seq"){
+Load_smdsc_to_Seurat <- function(smdFile, h5data = "scRNA_seq"){
   library(SeuratObject)
-  h5_obj <- rhdf5::h5read(sptFile, h5data)
+  h5_obj <- rhdf5::h5read(smdFile, h5data)
   dat <- sparseMatrix(i = h5_obj$indices[] + 1,
                       p = h5_obj$indptr[],
                       x = as.numeric(h5_obj$data[]),

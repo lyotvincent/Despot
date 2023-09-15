@@ -14,8 +14,8 @@ setwd(params$working_dir)
 # set data path
 dataPath <- params$dataPath
 
-# set sptFile
-sptFile <- params$sptFile
+# set smdFile
+smdFile <- params$smdFile
 
 # get platform
 platform <- params$platform
@@ -28,11 +28,11 @@ ground.truth <- paste0(params$working_dir, '/', dataPath, '/', params$ground_tru
 
 ground.name <- params$ground_name
 
-# Init sptFile
-Init_spt(sptFile)
+# Init smdFile
+Init_smd(smdFile)
 
-# Save important configs to sptFile
-Save_cfg_to_spt(sptFile, params)
+# Save important configs to smdFile
+Save_cfg_to_smd(smdFile, params)
 
 if(platform %in% c("10X", "10X_Visium", "Visium", "visium", "10X Visium")){
   # is filtered_matrix?
@@ -41,22 +41,22 @@ if(platform %in% c("10X", "10X_Visium", "Visium", "visium", "10X Visium")){
   # save hires.png?
   save.hires <- params$load_hires
 
-  Save_10X_to_spt(dir = dataPath,
-                  sptFile = sptFile,
+  Save_10X_to_smd(dir = dataPath,
+                  smdFile = smdFile,
                   filtered.matrix = filtered.matrix,
                   name = name,
                   ground.truth = ground.truth,
                   ground.name = ground.name,
                   save.hires = save.hires)
 } else if(platform %in% c("Slide-seq", "Slide-seqV2", "slide-seq", 'slide-seqV2')) {
-  Save_SlideSeq_to_spt(dir = dataPath,
-                 sptFile = sptFile,
+  Save_SlideSeq_to_smd(dir = dataPath,
+                 smdFile = smdFile,
                  name = name)
 } else if(platform %in% c("ST", "st")){
   dataName <- params$dataName
   st <- paste0(dataPath, '/', dataName)
-  Save_ST_to_spt(st = st,
-                 sptFile = sptFile,
+  Save_ST_to_smd(st = st,
+                 smdFile = smdFile,
                  name = name)
 }
 

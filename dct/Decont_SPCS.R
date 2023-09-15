@@ -8,8 +8,8 @@ source("sptranr/R/_SPCS.R")
 
 # decoding params
 params <- fromJSON(file = "params.json")
-sptFile <- params$sptFile
+smdFile <- params$smdFile
 
-sce <- Load_spt_to_SCE(sptFile)
+sce <- Load_smd_to_SCE(smdFile)
 SPCS_obj <- Decontaminate_SPCS(sce)
-Save_spt_from_SPCS(sptFile, SPCS_obj)
+Save_smd_from_SPCS(smdFile, SPCS_obj)

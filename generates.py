@@ -3,9 +3,9 @@ import seaborn as sns
 
 # generate figure 2-a
 def Gen_figure_2a(sptFile, hires=False, dataPath = None):
-    adata = Load_spt_to_AnnData(sptFile, "SPCS_mat", hires=hires, dataPath=dataPath)
+    adata = Load_smd_to_AnnData(sptFile, "SPCS_mat", hires=hires)
     adata.obs["spTRS"] = adata.obs["BayesSpace"]
-    adata0 = Load_spt_to_AnnData(sptFile, "matrix", hires=hires, dataPath=dataPath)
+    adata0 = Load_smd_to_AnnData(sptFile, "matrix", hires=hires)
     figa, axsa = plt.subplots(2, 2, figsize=(6, 6), constrained_layout=True)
     sc.pl.spatial(adata0, color="Seurat", size=1, ax=axsa[0, 0], show=False)
     sc.pl.spatial(adata0, color="Giotto", size=1, ax=axsa[0, 1], show=False)
@@ -17,7 +17,7 @@ def Gen_figure_2a(sptFile, hires=False, dataPath = None):
 
 
 def Gen_figure_2b(sptFile):
-    adata = Load_spt_to_AnnData(sptFile)
+    adata = Load_smd_to_AnnData(sptFile)
     figa, axsa = plt.subplots(1, 2, figsize=(6.5, 3), constrained_layout=True)
     sc.pl.spatial(adata, img_key="lowres", ax=axsa[0], show=False)
     axsa[0].set_title("H&E image for 151673")
@@ -37,7 +37,7 @@ def Gen_figure_2c(tempdir):
         if os.path.isfile(sptFile):
             bmc = {}
             for h5data in h5datas:
-                bm = Load_spt_to_Benchmark(sptFile, h5data)
+                bm = Load_smd_to_Benchmark(sptFile, h5data)
                 bmc[h5data] = bm
             benchmarks[slice] = bmc
 
@@ -91,8 +91,8 @@ def Gen_figure_2c(tempdir):
     figa.savefig("figures/fig2-c.svg")
 
 def Gen_figure_2d(sptFile):
-    bm = Load_spt_to_Benchmark(sptFile, h5data = "matrix", mode='cluster')
-    bm0 = Load_spt_to_Benchmark(sptFile, h5data = "SPCS_mat", mode='cluster')
+    bm = Load_smd_to_Benchmark(sptFile, h5data="matrix", mode='cluster')
+    bm0 = Load_smd_to_Benchmark(sptFile, h5data="SPCS_mat", mode='cluster')
     bmari = pd.DataFrame({"ARI": bm['ARI'], 'attr':['raw'] * 8, 'method':bm.index})
     bmari = bmari.loc[["BayesSpace", "SpaGCN", "Giotto", "Seurat", "leiden"], :]
     bmari0 = pd.DataFrame({"ARI": bm0['ARI'], 'attr': ['imputed'] * 7, 'method': bm0.index})
@@ -122,7 +122,7 @@ def Gen_figure_2d(sptFile):
 
 def Gen_figure_2e(sptFile):
     h5data = "SPCS_mat"
-    bme = Load_spt_to_Benchmark(sptFile, h5data, mode="estimate")
+    bme = Load_smd_to_Benchmark(sptFile, h5data, mode="estimate")
     BM = pd.DataFrame()
     for met in bme.keys():
         df = pd.DataFrame(bme[met]['moransI'])
@@ -138,7 +138,7 @@ def Gen_figure_2e(sptFile):
 
 def Gen_figure_2f(sptFile):
     h5data = "SPCS_mat"
-    adata = Load_spt_to_AnnData(sptFile, h5data)
+    adata = Load_smd_to_AnnData(sptFile, h5data)
     HVG = adata.uns["HVGs"]['SpaGCN']
     HVG.sort_values('fold_change', ascending=False)
     group = HVG.groupby('cluster').head(2)
@@ -157,7 +157,7 @@ def Gen_figure_2f(sptFile):
 
 
 def Gen_figure_3a(sptFile):
-    adata = Load_spt_to_AnnData(sptFile)
+    adata = Load_smd_to_AnnData(sptFile)
     figa, axsa = plt.subplots(1, 2, figsize=(6.5, 3), constrained_layout=True)
     sc.pl.spatial(adata, img_key="lowres", ax=axsa[0], show=False)
     axsa[0].set_title("H&E image for FFPE Kidney")
@@ -169,7 +169,7 @@ def Gen_figure_3a(sptFile):
     figa.savefig("figures/fig3-a.pdf")
 
 def Gen_figure_3bc(sptFile, Wfile):
-    adata = Load_spt_to_AnnData(sptFile)
+    adata = Load_smd_to_AnnData(sptFile)
     W = pd.read_csv(Wfile, sep='\t', index_col=0)
     W.columns = ['CD45 B cell', 'CD45 T cell', 'CD45 macrophage',
                  'kidney distal convoluted tubule epithelial cell',
@@ -211,7 +211,7 @@ def Gen_figure_3bc(sptFile, Wfile):
     figc.savefig("figures/fig3-c.pdf")
 
 def Gen_figure_3d(sptFile, Wfile):
-    adata = Load_spt_to_AnnData(sptFile)
+    adata = Load_smd_to_AnnData(sptFile)
     W = pd.read_csv(Wfile, sep='\t', index_col=0)
     W.columns = ['CD45 B cell', 'CD45 T cell', 'CD45 macrophage',
                  'kidney distal convoluted tubule epithelial cell',
@@ -239,7 +239,7 @@ def Gen_figure_3d(sptFile, Wfile):
     figd.savefig("figures/fig3-d.pdf")
 
 def Gen_figure_3e(sptFile, Wfile):
-    adata = Load_spt_to_AnnData(sptFile)
+    adata = Load_smd_to_AnnData(sptFile)
     W = pd.read_csv(Wfile, sep='\t', index_col=0)
     W.columns = ['CD45 B cell', 'CD45 T cell', 'CD45 macrophage',
                  'kidney distal convoluted tubule epithelial cell',
@@ -274,7 +274,7 @@ def Gen_figure_3fg(sptFile):
     cnt = pd.read_csv(cntFile, sep='\t', index_col=0)
     mtaFile = "h5ads/references/Kidney/mta_data.tsv"
     mta = pd.read_csv(mtaFile, sep='\t', index_col=0)
-    scdata = Load_spt_sc_to_AnnData(sptFile)
+    scdata = Load_smd_sc_to_AnnData(sptFile)
     from utils.stereoScope import Easy_Sample
     from utils.analysis import Spatial_Cluster_Analysis
     from sklearn import metrics
@@ -304,10 +304,10 @@ def Gen_figure_3fg(sptFile):
     figg.savefig("figures/fig3-g.pdf")
 
 def Generate_figure_4a(sptFile):
-    adata = Load_spt_to_AnnData(sptFile, hires=True, dataPath=dataPath)
+    adata = Load_smd_to_AnnData(sptFile, hires=True)
 
 def Generate_figure_4d(sptFile):
-    adata = Load_spt_to_AnnData(sptFile, hires=True, dataPath=dataPath)
+    adata = Load_smd_to_AnnData(sptFile, hires=True)
     Wfile = "h5ads/res/spt_data/W.2022-04-14172940.888071.tsv"    # d14
     # Wfile = "h5ads/res/spt_data/W.2022-04-14171350.064126.tsv"    # d0
     W = pd.read_csv(Wfile, sep='\t', index_col=0)
@@ -327,7 +327,7 @@ def Generate_figure_5abcd():
                 "h5ads/FFPE_Human_Prostate_IF.h5spt"]
     Adatas = []
     for sptFile in sptFiles:
-        adata = Load_spt_to_AnnData(sptFile, count="SPCS_mat")
+        adata = Load_smd_to_AnnData(sptFile)
         Adatas.append(adata)
     figa, axsa = plt.subplots(2, 2, figsize=(6, 6), constrained_layout=True)
     sc.pl.spatial(Adatas[0], color="BayesSpace", size=1, ax=axsa[0, 0], show=False)
@@ -390,7 +390,7 @@ def Generate_figure_5abcd():
     group2 = HVG2.groupby('cluster')
 
 def Generate_figure_5e(sptFile, Wfile):
-    adata = Load_spt_to_AnnData(sptFile)
+    adata = Load_smd_to_AnnData(sptFile)
     W = pd.read_csv(Wfile, sep='\t', index_col=0)
     W = W[["B.cells", "NK", "Macrophage"]]
     obs = adata.obs
@@ -403,7 +403,7 @@ def Generate_figure_5e(sptFile, Wfile):
 
 
 def Generate_figure_5fghi(sptFile, Wfile):
-    adata = Load_spt_to_AnnData(sptFile)
+    adata = Load_smd_to_AnnData(sptFile)
     W = pd.read_csv(Wfile, sep='\t', index_col=0)
     obs = adata.obs
     adata.obs = pd.concat([obs, W], axis=1)
@@ -421,7 +421,7 @@ def Generate_figure_5fghi(sptFile, Wfile):
     figb2.savefig("figures/fig5-i.pdf")
 
 def Gen_figure_5j(sptFile, Wfile):
-    adata = Load_spt_to_AnnData(sptFile, count="SPCS_mat")
+    adata = Load_smd_to_AnnData(sptFile)
     W = pd.read_csv(Wfile, sep='\t', index_col=0)
     obs = adata.obs
     W0 = W.copy()
@@ -442,7 +442,7 @@ def Gen_figure_5j(sptFile, Wfile):
     fige.savefig("figures/fig6-c.pdf")
 
 def Gen_figure_5k(sptFile, Wfile):
-    adata = Load_spt_to_AnnData(sptFile)
+    adata = Load_smd_to_AnnData(sptFile)
     W = pd.read_csv(Wfile, sep='\t', index_col=0)
     obs = adata.obs
     adata.obs = pd.concat([obs, W], axis=1)
@@ -465,7 +465,7 @@ def Gen_figure_5lm(sptFile):
     cnt = pd.read_csv(cntFile, sep='\t', index_col=0)
     mtaFile = "h5ads/references/FFPE_Human_Normal_Prostate/mta_data.tsv"
     mta = pd.read_csv(mtaFile, sep='\t', index_col=0)
-    scdata = Load_spt_sc_to_AnnData(sptFile)
+    scdata = Load_smd_sc_to_AnnData(sptFile)
     from utils.stereoScope import Easy_Sample
     from utils.analysis import Spatial_Cluster_Analysis
     from sklearn import metrics
@@ -495,9 +495,9 @@ def Gen_figure_5lm(sptFile):
     figg.savefig("figures/fig5-m.pdf")
 
 def Gen_figure_6a(sptFile, hires = False):
-    adata = Load_spt_to_AnnData(sptFile, "SPCS_mat", hires=hires, dataPath=dataPath)
+    adata = Load_smd_to_AnnData(sptFile, "SPCS_mat", hires=hires)
     adata.obs["spTRS"] = adata.obs["SpaGCN"]
-    adata0 = Load_spt_to_AnnData(sptFile, "matrix", hires=hires, dataPath=dataPath)
+    adata0 = Load_smd_to_AnnData(sptFile, "matrix", hires=hires)
     figa, axsa = plt.subplots(2, 2, figsize=(6, 6), constrained_layout=True)
     sc.pl.spatial(adata0, color="Seurat", size=1, ax=axsa[0, 0], show=False)
     sc.pl.spatial(adata0, color="Giotto", size=1, ax=axsa[0, 1], show=False)
@@ -510,7 +510,7 @@ def Gen_figure_6a(sptFile, hires = False):
     figa.savefig("figures/fig6-a.svg")
 
 def Generate_figure_6b(sptFile, Wfile):
-    adata = Load_spt_to_AnnData(sptFile)
+    adata = Load_smd_to_AnnData(sptFile)
     W = pd.read_csv(Wfile, sep='\t', index_col=0)
     obs = adata.obs
     adata.obs = pd.concat([obs, W], axis=1)

@@ -38,11 +38,11 @@ benchmark <- function(c1, c2){
   return(bk)
 }
 
-Benchmark_Clustering <- function(sptFile, h5data){
-  h5_clu <- rhdf5::h5read(sptFile, paste0(h5data, '/idents'))
+Benchmark_Clustering <- function(smdFile, h5data){
+  h5_clu <- rhdf5::h5read(smdFile, paste0(h5data, '/idents'))
   methods <- attr(h5_clu, "names")
   mark <- data.frame()
-  loc <- H5Fopen(sptFile)
+  loc <- H5Fopen(smdFile)
   if(!H5Lexists(loc, 'matrix/idents/ground_truth')){
     message("no ground_truth for benchmark, stop.")
     H5close()
@@ -54,7 +54,7 @@ Benchmark_Clustering <- function(sptFile, h5data){
     ground_truth <- h5_clu[["ground_truth"]]
   }else{
     # other cleaned data should load ground truth from raw data
-    ground_truth <- rhdf5::h5read(sptFile, 'matrix/idents/ground_truth')
+    ground_truth <- rhdf5::h5read(smdFile, 'matrix/idents/ground_truth')
   }
   ground_truth[is.na(ground_truth)] <- "NA"
   ground_truth <- as.factor(ground_truth)
@@ -66,29 +66,29 @@ Benchmark_Clustering <- function(sptFile, h5data){
   return(mark)
 }
 
-Save_spt_from_Benchmark_clu <- function(sptFile, h5data, mark){
+Save_smd_from_Benchmark_clu <- function(smdFile, h5data, mark){
   # convert to dense Matrix
   mat_mark <- Matrix(as.matrix(mark))
 
-  h5createGroup(sptFile, paste0(h5data, '/benchmark/cluster'))
+  h5createGroup(smdFile, paste0(h5data, '/benchmark/cluster'))
   # save 1d weights
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = mat_mark@x,
-                     sptloc = paste0(h5data, '/benchmark/cluster/value'),
+                     smdloc = paste0(h5data, '/benchmark/cluster/value'),
                      mode = 'double')
   # save shape
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = mat_mark@Dim,
-                     sptloc = paste0(h5data, '/benchmark/cluster/shape'),
+                     smdloc = paste0(h5data, '/benchmark/cluster/shape'),
                      mode = 'integer')
   # save dim names
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = rownames(mat_mark),
-                     sptloc = paste0(h5data, '/benchmark/cluster/methods'),
+                     smdloc = paste0(h5data, '/benchmark/cluster/methods'),
                      mode = 'character')
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = colnames(mat_mark),
-                     sptloc = paste0(h5data, '/benchmark/cluster/targets'),
+                     smdloc = paste0(h5data, '/benchmark/cluster/targets'),
                      mode = 'character')
 }
 
@@ -98,8 +98,8 @@ moransI <- function(data, loc, features){
   return(moran)
 }
 
-Benchmark_Estimation <- function(sptFile,imgdir, h5data){
-  seu <-Load_spt_to_Seurat(sptFile, imgdir, h5data)
+Benchmark_Estimation <- function(smdFile,imgdir, h5data){
+  seu <-Load_smd_to_Seurat(smdFile, imgdir, h5data)
   # load location info
   loc <- data.frame(row = seu@images$slice1@coordinates$row,
                     col = seu@images$slice1@coordinates$col,
@@ -107,7 +107,7 @@ Benchmark_Estimation <- function(sptFile,imgdir, h5data){
   seu <- Preprocess_Seurat(seu)
   data <- seu@assays$SCT@data
 
-  h5_est <- rhdf5::h5read(sptFile, paste0(h5data, '/features/is_HVG'))
+  h5_est <- rhdf5::h5read(smdFile, paste0(h5data, '/features/is_HVG'))
 
   methods <- attr(h5_est, "names")
   moran = list()
@@ -160,29 +160,29 @@ Benchmark_Estimation <- function(sptFile,imgdir, h5data){
   return(moran)
 }
 
-Save_spt_from_Benchmark_est <- function(sptFile, h5data, moran){
+Save_smd_from_Benchmark_est <- function(smdFile, h5data, moran){
 
-  h5createGroup(sptFile, paste0(h5data, '/benchmark/estimate'))
+  h5createGroup(smdFile, paste0(h5data, '/benchmark/estimate'))
 
   methods <- attr(moran, "names")
 
   for(method in methods){
 
-    h5createGroup(sptFile, paste0(h5data, '/benchmark/estimate/', method))
+    h5createGroup(smdFile, paste0(h5data, '/benchmark/estimate/', method))
     # save gene
-    Create_spt_array1d(sptFile,
+    Create_smd_array1d(smdFile,
                        arr = rownames(moran[[method]]),
-                       sptloc = paste0(h5data, '/benchmark/estimate/', method, "/name"),
+                       smdloc = paste0(h5data, '/benchmark/estimate/', method, "/name"),
                        mode = 'character')
     # save moransI
-    Create_spt_array1d(sptFile,
+    Create_smd_array1d(smdFile,
                        arr = moran[[method]]$observed,
-                       sptloc = paste0(h5data, '/benchmark/estimate/', method, "/moransI"),
+                       smdloc = paste0(h5data, '/benchmark/estimate/', method, "/moransI"),
                        mode = 'double')
     # save pvalue
-    Create_spt_array1d(sptFile,
+    Create_smd_array1d(smdFile,
                        arr = moran[[method]]$p.value,
-                       sptloc = paste0(h5data, '/benchmark/estimate/', method, "/pval"),
+                       smdloc = paste0(h5data, '/benchmark/estimate/', method, "/pval"),
                        mode = 'double')
   }
 }

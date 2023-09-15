@@ -2,7 +2,7 @@ import os
 
 import pandas as pd
 
-from utils.io import Load_spt_to_AnnData, Save_tsv_from_spData, Save_meta_from_spData, sptInfo, Save_spt_from_txt
+from utils.io import Load_smd_to_AnnData, Save_tsv_from_spData, Save_meta_from_spData, smdInfo, Save_smd_from_txt
 
 
 def Handle_Dependencies():
@@ -13,13 +13,13 @@ def Handle_Dependencies():
     pass
 
 
-def sprod_pp(sptFile, tempdir='h5ads/temps'):
-    sptinfo = sptInfo(sptFile)
-    adata = Load_spt_to_AnnData(sptFile)
+def sprod_pp(smdFile, tempdir='h5ads/temps'):
+    smdinfo = smdInfo(smdFile)
+    adata = Load_smd_to_AnnData(smdFile)
     print("Saving Count data to {0}.".format(tempdir))
     Save_tsv_from_spData(tempdir, adata, filename="Counts.txt", transport=False, index_label="Barcodes")
     print("Saving metadata to {0}.".format(tempdir))
-    Save_meta_from_spData(tempdir, adata, sample_name=sptinfo.name, filename="Spot_metadata.csv")
+    Save_meta_from_spData(tempdir, adata, sample_name=smdinfo.name, filename="Spot_metadata.csv")
 
 
 def sprod_run(sprod_dir, out_dir, pythonPath):
@@ -28,7 +28,7 @@ def sprod_run(sprod_dir, out_dir, pythonPath):
               "{1}".format(pythonPath, cmd))
 
 
-def sprod_save(sptFile, out_dir):
+def sprod_save(smdFile, out_dir):
     txt_file = os.path.join(out_dir, "sprod_Denoised_matrix.txt")
-    Save_spt_from_txt(sptFile, txt_file, name="SPROD_mat", transport=True)
+    Save_smd_from_txt(smdFile, txt_file, name="SPROD_mat", transport=True)
     os.remove(txt_file)

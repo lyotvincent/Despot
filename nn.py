@@ -10,8 +10,8 @@ import torch.nn.functional as F
 from sklearn.preprocessing import MinMaxScaler
 
 sptFile = "h5ads/FFPE_Mouse_Kidney.h5spt"
-scdata = Load_spt_sc_to_AnnData(sptFile)
-stdata = Load_spt_to_AnnData(sptFile, count="SPCS_mat")
+scdata = Load_smd_sc_to_AnnData(sptFile)
+stdata = Load_smd_to_AnnData(sptFile)
 scgenes = set(scdata.var_names)
 stgenes = set(stdata.var_names)
 genes = list(stgenes.intersection(scgenes))

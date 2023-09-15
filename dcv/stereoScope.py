@@ -258,22 +258,22 @@ def myPreprocess(loom_pth, out_dir, standard_size=50, label='Celltype_1',add_fil
                  )
     ds.close()
 
-def StereoScope_pp_na(sptFile, tempdir='h5ads', h5data='matrix', standard_size=25 ,add_filter=None, name="temp"):
+def StereoScope_pp_na(smdFile, tempdir='h5ads', h5data='matrix', standard_size=25 ,add_filter=None, name="temp"):
     # load spatial data
-    spdata = Load_spt_to_AnnData(sptFile, h5data)
+    spdata = Load_smd_to_AnnData(smdFile, h5data)
     # load scRNA-seq data
-    scdata = Load_spt_sc_to_AnnData(sptFile)
+    scdata = Load_smd_sc_to_AnnData(smdFile)
     out_dir = tempdir + "/references/" + name
     # save scRNA-seq data to tsv
     Save_tsv_from_scData(out_dir, scdata)
     # save ST data to tsv
     Save_tsv_from_spData(out_dir, spdata)
 
-def StereoScope_pp_EasySample(sptFile, tempdir='h5ads', h5data='matrix', standard_size=25 ,add_filter=None, name="temp"):
+def StereoScope_pp_EasySample(smdFile, tempdir='h5ads', h5data='matrix', standard_size=25 ,add_filter=None, name="temp"):
     # load spatial data
-    spdata = Load_spt_to_AnnData(sptFile, h5data)
+    spdata = Load_smd_to_AnnData(smdFile, h5data)
     # load scRNA-seq data
-    scdata = Load_spt_sc_to_AnnData(sptFile)
+    scdata = Load_smd_sc_to_AnnData(smdFile)
     scdata0 = Easy_Sample(scdata, standard_size, add_filter)
     out_dir = tempdir + "/references/" + name
     # save scRNA-seq data to tsv
@@ -281,15 +281,15 @@ def StereoScope_pp_EasySample(sptFile, tempdir='h5ads', h5data='matrix', standar
     # save ST data to tsv
     Save_tsv_from_spData(out_dir, spdata)
 
-def StereoScope_pp_VAE(sptFile, tempdir='h5ads', h5data='matrix', standard_size=25, add_filter=None, name="temp"):
+def StereoScope_pp_VAE(smdFile, tempdir='h5ads', h5data='matrix', standard_size=25, add_filter=None, name="temp"):
     # load spatial data
-    spdata = Load_spt_to_AnnData(sptFile, h5data)
+    spdata = Load_smd_to_AnnData(smdFile, h5data)
     out_dir = tempdir + "/references/" + name
     Save_tsv_from_spData(out_dir, spdata)
 
     # load scRNA-seq data
-    ref, lbl = Make_References(sptFile, ref_size=standard_size)
-    # Save_spt_from_ref(sptFile, ref, lbl)
+    ref, lbl = Make_References(smdFile, ref_size=standard_size)
+    # Save_spt_from_ref(smdFile, ref, lbl)
     Save_tsv_from_ref(ref, lbl, tempdir, name)
 
 

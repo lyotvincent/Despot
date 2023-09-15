@@ -22,7 +22,7 @@ Deconvolution_spacexr <- function(sr, ref){
   return(rctd)
 }
 
-Save_spt_from_spacexr <- function(sptFile, h5data, rctd, pp_mtd="vae"){
+Save_smd_from_spacexr <- function(smdFile, h5data, rctd, pp_mtd="vae"){
   results <- rctd@results
   # normalize the cell type proportions to sum to 1.
   norm_weights <- normalize_weights(results$weights)
@@ -32,26 +32,26 @@ Save_spt_from_spacexr <- function(sptFile, h5data, rctd, pp_mtd="vae"){
   } else if(pp_mtd == "es"){
     mtd <- 'spacexr_es'
   }
-  h5createGroup(sptFile, paste0(h5data, '/deconv/', mtd))
+  h5createGroup(smdFile, paste0(h5data, '/deconv/', mtd))
 
   # save 1d weights
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = norm_weights@x,
-                     sptloc = paste0(h5data, '/deconv/', mtd, '/weights'),
+                     smdloc = paste0(h5data, '/deconv/', mtd, '/weights'),
                      mode = 'double')
   # save shape
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = norm_weights@Dim,
-                     sptloc = paste0(h5data, '/deconv/', mtd, '/shape'),
+                     smdloc = paste0(h5data, '/deconv/', mtd, '/shape'),
                      mode = 'integer')
   # save dim names
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = rownames(norm_weights),
-                     sptloc = paste0(h5data, '/deconv/', mtd,'/barcodes'),
+                     smdloc = paste0(h5data, '/deconv/', mtd,'/barcodes'),
                      mode = 'character')
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = colnames(norm_weights),
-                     sptloc = paste0(h5data, '/deconv/', mtd, '/cell_type'),
+                     smdloc = paste0(h5data, '/deconv/', mtd, '/cell_type'),
                      mode = 'character')
 }
 

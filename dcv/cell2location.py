@@ -12,8 +12,8 @@ results_folder = './h5ads/lymph_nodes_analysis/'
 ref_run_name = f'{results_folder}/reference_signatures'
 run_name = f'{results_folder}/cell2location_map'
 
-def Cell2Location_pp_sc(sptFile, cell_count_cutoff=5, cell_percentage_cutoff2=0.03, nonz_mean_cutoff=1.12):
-    adata_sc = Load_spt_sc_to_AnnData(sptFile)
+def Cell2Location_pp_sc(smdFile, cell_count_cutoff=5, cell_percentage_cutoff2=0.03, nonz_mean_cutoff=1.12):
+    adata_sc = Load_smd_sc_to_AnnData(smdFile)
     adata_sc.obs_names_make_unique()
     adata_sc.var_names_make_unique()
     # Use ENSEMBL as gene IDs to make sure IDs are unique and correctly matched
@@ -63,9 +63,9 @@ def Cell2Location_rg_sc(adata_sc, max_epoches=250, batch_size=2500, train_size=1
     inf_aver.columns = adata_sc.uns['mod']['factor_names']
     return inf_aver
 
-def Cell2Location_pp_sp(sptFile, h5data):
-    info = sptInfo(sptFile)
-    adata_sp = Load_spt_to_AnnData(sptFile, h5data=h5data)
+def Cell2Location_pp_sp(smdFile, h5data):
+    info = smdInfo(smdFile)
+    adata_sp = Load_smd_to_AnnData(smdFile, h5data=h5data)
     adata_sp.var_names_make_unique()
     adata_sp.obs['sample'] = info.name
 
@@ -128,11 +128,11 @@ def Cell2Location_rg_sp(adata_sp, inf_aver, N_cells_per_location=30, detection_a
 
 
 
-def Cell2Location_run(sptFile, h5data, sc_max_epoches=250, sc_batch_size=2500, sc_train_size=1, sc_lr=0.002, sc_num_samples=1000,
+def Cell2Location_run(smdFile, h5data, sc_max_epoches=250, sc_batch_size=2500, sc_train_size=1, sc_lr=0.002, sc_num_samples=1000,
                       N_cells_per_location=30, detection_alpha=20,
                       sp_max_epoches=10000, sp_batch_size=2500, sp_train_size=1, sp_lr=0.002, sp_num_samples=1000, use_gpu=True):
-    adata_sc = Cell2Location_pp_sc(sptFile)
-    adata_sp = Cell2Location_pp_sp(sptFile, h5data=h5data)
+    adata_sc = Cell2Location_pp_sc(smdFile)
+    adata_sp = Cell2Location_pp_sp(smdFile, h5data=h5data)
     inf_aver = Cell2Location_rg_sc(adata_sc, sc_max_epoches, sc_batch_size, sc_train_size,sc_lr,sc_num_samples, use_gpu)
     adata_sp = Cell2Location_rg_sp(adata_sp, inf_aver,
                                    N_cells_per_location=N_cells_per_location,

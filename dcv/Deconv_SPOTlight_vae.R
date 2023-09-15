@@ -10,31 +10,31 @@ library(stringr)
 
 # decoding params
 params <- fromJSON(file = "params.json")
-sptFile <- params$sptFile
+smdFile <- params$smdFile
 platform <- params$platform
 if(is.null(platform)){
   platform <- "10X_Visium"  # default using 10X_Visium
 }
 
 for(decont in params$Decontamination){
-  h5data <- Create_spt_h5data(decont)
+  h5data <- Create_smd_h5data(decont)
   if(platform != "10X_Visium" && h5data == "SpotClean_mat"){
     message("SpotClean only Support 10X Visium data, skip it.")
     next
   }
 
   # read References
-  sce <- Load_sptsc_to_SCE(sptFile, "sc-ref")
+  sce <- Load_smdsc_to_SCE(smdFile, "sc-ref")
   rownames(sce) <- toupper(rownames(sce))
   sce <- Analysis_scRNA_seq(sce)
   sce@metadata[['HVGs']] <- toupper(rownames(sce))
 
   # Load the spatial transcriptome data to SE: SpatialExperiment
-  spe <- Load_spt_to_SE(sptFile, h5data, platform = platform)
+  spe <- Load_smd_to_SE(smdFile, h5data, platform = platform)
   # Use the symbol as rownames
   rownames(spe) <- rowData(spe)$symbol
   spotlight <- Deconvolution_SPOTlight(spe, sce)
   rownames(spotlight$mat) <- spe@colData$Barcode
   colnames(spotlight$mat) <- attr(table(sce$free_annotation), 'names')
-  Save_spt_from_SPOTlight(sptFile, h5data, spotlight, pp_mtd = "vae")
+  Save_smd_from_SPOTlight(smdFile, h5data, spotlight, pp_mtd = "vae")
 }

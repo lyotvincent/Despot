@@ -13,6 +13,7 @@
   "name": "PDAC-A",
   "filter_matrix": true,
   "sptFile": "h5ads/PDAC-A.h5spt",
+  "smdFile": "h5ads/PDAC-A.h5spt",
   "ground_truth": "metadata.csv",
   "ground_name": "",
   "scDataPath": "data/PDAC/PDAC-A/scRNA-seq",

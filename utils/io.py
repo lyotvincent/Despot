@@ -1,34 +1,33 @@
 from utils.common import *
 
 
-# summary of a sptFile
-class sptInfo:
-    def __init__(self, sptFile):
-        self.sptFile = sptFile
+# summary of a smdFile
+class smdInfo:
+    def __init__(self, smdFile):
+        self.sptFile = smdFile
+        self.smdFile = smdFile
         # add names and coordinates
         self.name = None
-        with h5.File(sptFile, 'r') as f:
+        with h5.File(smdFile, 'r') as f:
             mat = list(f.keys())
             if 'name' in mat:
                 self.name = bytes2str(f['name'][:])[0]
             if 'sptimages' in mat:
                 coord = f['sptimages']["coordinates"]
                 self.coords = pd.DataFrame({'in_tissue': np.array(coord["tissue"][:], dtype='int32'),
-                                'array_row': np.array(coord["row"][:], dtype='int32'),
-                                'array_col': np.array(coord["col"][:], dtype='int32'),
-                                'image_row': np.array(coord["imagerow"][:], dtype='int32'),
-                                'image_col': np.array(coord["imagecol"][:], dtype='int32')},
-                               index=bytes2str(coord["index"][:]))
+                                                'array_row': np.array(coord["row"][:], dtype='int32'),
+                                                'array_col': np.array(coord["col"][:], dtype='int32'),
+                                                'image_row': np.array(coord["imagerow"][:], dtype='int32'),
+                                                'image_col': np.array(coord["imagecol"][:], dtype='int32')},
+                                                index=bytes2str(coord["index"][:]))
                 self.coords.sort_index()
                 if 'scalefactors' in f['sptimages']:
                     sf = f['sptimages']["scalefactors"]
                     if 'spot' in sf and 'lowres' in sf:
                         self.scalefactors = {'spot_diameter_fullres': sf['spot'][0],
-                                     'tissue_hires_scalef': sf['hires'][0],
-                                     'fiducial_diameter_fullres': sf['fiducial'][0],
-                                     'tissue_lowres_scalef': sf['lowres'][0] }
-
-
+                                             'tissue_hires_scalef': sf['hires'][0],
+                                             'fiducial_diameter_fullres': sf['fiducial'][0],
+                                             'tissue_lowres_scalef': sf['lowres'][0]}
 
         # add origin matrix
         self.spmatrixs = {}
@@ -45,7 +44,7 @@ class sptInfo:
             self.scmatrixs.append('scRNA_seq')
 
         # for each spmatrix, add clu_methods and dcv_methods, load idents and proportions
-        with h5.File(self.sptFile, 'r') as f:
+        with h5.File(self.smdFile, 'r') as f:
             coord = f["sptimages"]["coordinates"]
             for keys in self.spmatrixs.keys():
                 h5mat = f[keys]
@@ -71,7 +70,7 @@ class sptInfo:
         # add map_chain if available
         self.map_chains = pd.DataFrame()
         if 'map_chains' in mat:
-            with h5.File(self.sptFile, 'r') as f:
+            with h5.File(self.smdFile, 'r') as f:
                 for key in f['map_chains'].keys():
                     dat = f['map_chains'][key][:]
                     if key in ['cell-type', 'clu', 'dct', 'dcv']:
@@ -84,7 +83,7 @@ class sptInfo:
 
         # add configs
         self.configs = {}
-        with h5.File(self.sptFile, 'r') as f:
+        with h5.File(self.smdFile, 'r') as f:
             if "configs" in f:
                 cfg = f["configs"]
                 for k in cfg.keys():
@@ -165,8 +164,8 @@ class sptInfo:
             return str(dataPath) + "/" + str(imgPath) + "/tissue_hires_image.png"
 
 
-# save configs to sptFile
-def Save_spt_from_configs(sptFile, cfg_file="params.json", items: dict = None, change_cfg=False):
+# save configs to smdFile
+def Save_smd_from_configs(smdFile, cfg_file="params.json", items: dict = None, change_cfg=False):
     def get_item(items,k):
         item = items[k]
         if type(item) == str:
@@ -178,7 +177,7 @@ def Save_spt_from_configs(sptFile, cfg_file="params.json", items: dict = None, c
                 item = str2bytes(item)
         return item
 
-    with h5.File(sptFile, 'a') as f:
+    with h5.File(smdFile, 'a') as f:
         if "configs" not in f:
             # save configs from params.json if no configs or needs to change configs
             f.create_group("configs")
@@ -198,12 +197,12 @@ def Save_spt_from_configs(sptFile, cfg_file="params.json", items: dict = None, c
                 if k in f["configs"]:
                     del f["configs/" + k]
                 item = get_item(items, k)
-                print(item)
+                # print(item)
                 f.create_dataset(name="configs/" + k, data=item)
     return 0
 
 
-def Spt_check_corrections(sptFile):
+def SMD_check_corrections(smdFile):
     def check_matrix(h5obj):
         basic_item = ['barcodes', 'features', 'data', 'indices', 'indptr', 'shape']
         for item in basic_item:
@@ -222,9 +221,9 @@ def Spt_check_corrections(sptFile):
 
     true_flag = True
     # check configs
-    Save_spt_from_configs(sptFile)
+    Save_smd_from_configs(smdFile)
 
-    with h5.File(sptFile, 'r') as f:
+    with h5.File(smdFile, 'r') as f:
         if 'sptimages' not in f:
             print("check matrix corrections failed in sptimages.")
             return False
@@ -240,6 +239,7 @@ def Spt_check_corrections(sptFile):
                 return False
     return true_flag
 
+
 # the params are saved in a .json config
 def Load_json_configs(path: str, encoding: str = 'utf-8'):
     with open(path, 'r', encoding=encoding) as fp:
@@ -249,11 +249,12 @@ def Load_json_configs(path: str, encoding: str = 'utf-8'):
 
 # convert bytes to str in array
 def bytes2str(arr):
-    if type(arr[0]) == bytes:
+    if type(arr[0]) == bytes or type(arr[0]) == np.bytes_:
         arr = np.array(list(map(lambda x: str(x, encoding='utf-8'), arr)))
     else:
         arr = np.array(list(map(lambda x: str(x), arr)))
     return arr
+
 
 # convert str to bytes in array
 def str2bytes(arr):
@@ -272,7 +273,7 @@ def tuple2bytes(arr):
     return arr
 
 
-def Load_spt_to_AnnData(sptFile: str,
+def Load_smd_to_AnnData(smdFile: str,
                         h5data: str = "matrix",
                         hires: bool = False,
                         loadDeconv: bool = False,
@@ -280,7 +281,7 @@ def Load_spt_to_AnnData(sptFile: str,
                         platform: str = '10X_Visium',
                         dtype='float32'):
     # use h5py to load origin info
-    with h5.File(sptFile, 'r') as h5_obj:
+    with h5.File(smdFile, 'r') as h5_obj:
         h5mat = h5_obj['matrix']
         h5img = h5_obj["sptimages"]
         coord = h5img["coordinates"]
@@ -389,13 +390,11 @@ def Load_spt_to_AnnData(sptFile: str,
             h5dcv = h5_obj[h5data + '/deconv']
             if len(h5dcv.keys()) > 0:
                 for dcv in h5dcv.keys():
-                    # print(dcv)
                     shape = h5dcv[dcv]['shape']
                     weights = np.array(h5dcv[dcv]['weights']).reshape(shape[1], shape[0]).T
                     barcodes = bytes2str(h5dcv[dcv]['barcodes'][:])
                     cell_type = bytes2str(h5dcv[dcv]['cell_type'][:])
                     w = pd.DataFrame(weights, index=barcodes, columns=cell_type)
-                    # print(w)
                     adata.obsm[dcv] = w
             print("Loading deconvolution data finished.")
 
@@ -403,13 +402,11 @@ def Load_spt_to_AnnData(sptFile: str,
             h5abd = h5dat['abundance']
             if len(h5abd.keys()) > 0:
                 for abd in h5abd.keys():
-                    # print(dcv)
                     shape = h5abd[abd]['shape']
                     weights = np.array(h5abd[abd]['weights']).reshape(shape[1], shape[0]).T
                     barcodes = bytes2str(h5abd[abd]['barcodes'][:])
                     cell_type = bytes2str(h5abd[abd]['cell_type'][:])
                     w = pd.DataFrame(weights, index=barcodes, columns=cell_type)
-                    # print(w)
                     adata.obsm[abd] = w
 
     # making var and obs unique
@@ -418,8 +415,8 @@ def Load_spt_to_AnnData(sptFile: str,
     return adata
 
 
-def Load_spt_sc_to_AnnData(sptFile, h5data='scRNA_seq'):
-    h5_obj = h5.File(sptFile, 'r')
+def Load_smd_sc_to_AnnData(smdFile, h5data='scRNA_seq'):
+    h5_obj = h5.File(smdFile, 'r')
     # the scRNA-seq Data is saved in 'scRNA_seq', using Sparse Matrix
     scRNA_seq = h5_obj[h5data]
     data = scRNA_seq['data']
@@ -431,6 +428,7 @@ def Load_spt_sc_to_AnnData(sptFile, h5data='scRNA_seq'):
     # create X in AnnData
     X = csc_matrix((data, indices, indptr), shape=shape, dtype='int32').T
     # create obs in AnnData
+    anno0 = idents['annotation'][:]
     anno = bytes2str(idents['annotation'][:])
     bar = bytes2str(scRNA_seq['barcodes'][:])
     obs = pd.DataFrame({'annotation': anno},
@@ -442,8 +440,9 @@ def Load_spt_sc_to_AnnData(sptFile, h5data='scRNA_seq'):
     adata = ad.AnnData(X, obs=obs, var=var)
     if 'HVGs' in scRNA_seq['features']:
         hvg = bytes2str(scRNA_seq['features']['HVGs'][:])
-        adata.uns['HVGs'] = np.array(hvg, dtype='str')
+        adata.uns['HVGs'] = hvg
     adata.var_names_make_unique()
+    h5_obj.close()
     return adata
 
 
@@ -470,9 +469,9 @@ def Load_weight_to_AnnData(adata: ad.AnnData, Wfile):
     return adata
 
 
-def Load_spt_to_Benchmark(sptFile, h5data, mode: str = "cluster"):
+def Load_smd_to_Benchmark(smdFile, h5data, mode: str = "cluster"):
     if mode == "cluster":
-        with h5.File(sptFile, 'r') as f:
+        with h5.File(smdFile, 'r') as f:
             bmc = f[h5data]['benchmark']['cluster']
             shape = bmc['shape']
             value = np.array(bmc['value']).reshape(shape[1], shape[0]).T
@@ -483,7 +482,7 @@ def Load_spt_to_Benchmark(sptFile, h5data, mode: str = "cluster"):
         return bm
     elif mode == "estimate":
         bm = {}
-        with h5.File(sptFile, 'r') as f:
+        with h5.File(smdFile, 'r') as f:
             bme = f[h5data]['benchmark']['estimate']
             for method in bme.keys():
                 bme_met = bme[method]
@@ -495,12 +494,12 @@ def Load_spt_to_Benchmark(sptFile, h5data, mode: str = "cluster"):
 
 
 # Save subset under existing h5datas
-def Save_spt_from_Subset(sptFile:str, h5data:str, subset_name:str, refer_idx=None, force=False):
+def Save_smd_from_Subset(smdFile:str, h5data:str, subset_name:str, refer_idx=None, force=False):
     # if it's required to save a reference to existing h5data, using ref_idx to select the subset.
     if refer_idx is not None:
         if type(refer_idx[0] == str):
             refer_idx = str2bytes(refer_idx)
-        with h5.File(sptFile, 'a') as f:
+        with h5.File(smdFile, 'a') as f:
             # create group
             if h5data + '/' + subset_name in f:
                 if force:
@@ -563,21 +562,21 @@ def Save_meta_from_spData(out_dir, spdata, sample_name, filename='spt_meta.tsv')
     return
 
 
-def Load_spt_to_stData(sptFile, count="matrix", hires=False, dtype=None):
+def Load_smd_to_stData(smdFile, count="matrix", hires=False, dtype=None):
     import stlearn as st
-    adata = Load_spt_to_AnnData(sptFile, count, hires, dtype)
+    adata = Load_smd_to_AnnData(smdFile, count, hires, dtype)
     adata.var_names_make_unique()
     adata.obs_names_make_unique()
     adata = st.convert_scanpy(adata)
     return adata
 
 
-def Save_spt_from_leiden(sptFile, adata, h5data='matrix'):
-    h5_obj = h5.File(sptFile, 'r')
+def Save_smd_from_leiden(smdFile, adata, h5data='matrix'):
+    h5_obj = h5.File(smdFile, 'r')
     fullgenes = np.array(h5_obj[h5data]['features']['name'][:], dtype='str')
     h5_obj.close()
     fg = pd.Series(np.zeros(len(fullgenes), dtype='bool'), index=fullgenes)
-    with h5.File(sptFile, 'a') as f:
+    with h5.File(smdFile, 'a') as f:
         # save idents
         ident = list(np.array(adata.obs['clusters'], dtype='int32'))
         if h5data + '/idents/leiden' not in f:
@@ -594,12 +593,12 @@ def Save_spt_from_leiden(sptFile, adata, h5data='matrix'):
         # f.create_dataset(h5data + '/features/is_HVG/leiden', data=list(fg), dtype='bool')
 
 
-def Save_spt_from_Squidpy_clu(sptFile, adata, h5data='matrix'):
-    # h5_obj = h5.File(sptFile, 'r')
+def Save_smd_from_Squidpy_clu(smdFile, adata, h5data='matrix'):
+    # h5_obj = h5.File(smdFile, 'r')
     # fullgenes = np.array(h5_obj[h5data]['features']['name'][:], dtype='str')
     # h5_obj.close()
     # fg = pd.Series(np.zeros(len(fullgenes), dtype='bool'), index=fullgenes)
-    with h5.File(sptFile, 'a') as f:
+    with h5.File(smdFile, 'a') as f:
         # save Squidpy feature idents, which clustered by images
         ident = list(np.array(adata.obs['features_cluster'], dtype='int32'))
         if h5data + '/idents/Squidpy_img' not in f:
@@ -609,8 +608,8 @@ def Save_spt_from_Squidpy_clu(sptFile, adata, h5data='matrix'):
             f.create_dataset(h5data + '/idents/Squidpy', data=ident, dtype='int32')
 
 
-def Save_spt_from_SpaGCN_clu(sptFile, adata, h5data='matrix'):
-    with h5.File(sptFile, 'a') as f:
+def Save_smd_from_SpaGCN_clu(smdFile, adata, h5data='matrix'):
+    with h5.File(smdFile, 'a') as f:
         # save idents
         ident = list(np.array(adata.obs['clusters'], dtype='int32'))
         if h5data + '/idents/SpaGCN' not in f:
@@ -621,8 +620,8 @@ def Save_spt_from_SpaGCN_clu(sptFile, adata, h5data='matrix'):
     print("Clustering with `SpaGCN` finished, idents saved in /" + h5data + '/idents/SpaGCN')
 
 
-def Save_spt_from_SEDR(sptFile, adata, h5data='matrix'):
-    with h5.File(sptFile, 'a') as f:
+def Save_smd_from_SEDR(smdFile, adata, h5data='matrix'):
+    with h5.File(smdFile, 'a') as f:
         # save idents
         ident = list(np.array(adata.obs['clusters'], dtype='int32'))
         if h5data + '/idents/SEDR' not in f:
@@ -633,18 +632,18 @@ def Save_spt_from_SEDR(sptFile, adata, h5data='matrix'):
     print("Clustering with `SEDR` finished, idents saved in /" + h5data + '/idents/SEDR')
 
 
-def Save_spt_from_stlearn(sptFile, stdata, h5data='matrix'):
-    with h5.File(sptFile, 'a') as f:
+def Save_smd_from_stlearn(smdFile, stdata, h5data='matrix'):
+    with h5.File(smdFile, 'a') as f:
         # save idents
         ident = list(np.array(stdata.obs['louvain'], dtype='int32'))
         f.create_dataset(h5data + '/idents/stlearn', data=ident, dtype='int32')
     print("Clustering with `stlearn` finished, idents saved in /" + h5data + '/idents/stlearn')
 
 
-def Save_spt_from_SpatialDE(sptFile, adata, h5data='matrix'):
+def Save_smd_from_SpatialDE(smdFile, adata, h5data='matrix'):
     # FSV: Fraction of variance explained by spatial variation
     # P value: SpatialDE-logP Value
-    with h5.File(sptFile, 'a') as f:
+    with h5.File(smdFile, 'a') as f:
         # create group
         if h5data + '/fearures/is_HVG/SpatialDE' not in f:
             f.create_group(h5data + '/fearures/is_HVG/SpatialDE')
@@ -672,8 +671,8 @@ def Save_spt_from_SpatialDE(sptFile, adata, h5data='matrix'):
     print("Estimation with `SpatialDE` finished, HVGs saved in /" + h5data + '/features/is_HVG/SpatialDE')
 
 
-def Save_spt_from_SpaGCN_est(sptFile, adata, h5data='matrix'):
-    with h5.File(sptFile, 'a') as f:
+def Save_smd_from_SpaGCN_est(smdFile, adata, h5data='matrix'):
+    with h5.File(smdFile, 'a') as f:
         # create group
         if h5data + '/fearures/is_HVG/SpaGCN' not in f:
             f.create_group(h5data + '/fearures/is_HVG/SpaGCN')
@@ -704,14 +703,14 @@ def Save_spt_from_SpaGCN_est(sptFile, adata, h5data='matrix'):
     print("Estimation with `SpaGCN` finished, HVGs saved in /" + h5data + '/features/is_HVG/SpaGCN')
 
 
-def Save_spt_from_StereoScope(sptFile, Wfile, h5data='matrix', name='StereoScope'):
+def Save_smd_from_StereoScope(smdFile, Wfile, h5data='matrix', name='StereoScope'):
     W = pd.read_csv(Wfile, sep='\t', index_col=0).T
     shape = [W.shape[1], W.shape[0]]
     weights = np.array(W).flatten()
     cell_type = list(str2bytes(W.index))
     barcodes = list(str2bytes(W.columns))
 
-    with h5.File(sptFile, 'a') as f:
+    with h5.File(smdFile, 'a') as f:
         if h5data + '/deconv/' + name not in f:
             f.create_group(h5data + '/deconv/' + name)
         else:
@@ -728,14 +727,14 @@ def Save_spt_from_StereoScope(sptFile, Wfile, h5data='matrix', name='StereoScope
     print("Deconvolution with `StereoScope` finished, Weight saved in /" + h5data + '/deconv/' + name)
 
 
-def Save_spt_from_Cell2Location(sptFile, adata, h5data='matrix'):
+def Save_smd_from_Cell2Location(smdFile, adata, h5data='matrix'):
     W = adata.obsm['Cell2Location'].T
     shape = [W.shape[1], W.shape[0]]
     weights = np.array(W).flatten()
     cell_type = list(str2bytes(W.index))
     barcodes = list(str2bytes(W.columns))
 
-    with h5.File(sptFile, 'a') as f:
+    with h5.File(smdFile, 'a') as f:
         if h5data + '/deconv/Cell2Location' not in f:
             f.create_group(h5data + '/deconv/Cell2Location')
         else:
@@ -752,7 +751,7 @@ def Save_spt_from_Cell2Location(sptFile, adata, h5data='matrix'):
     print("Deconvolution with `Cell2Location` finished, Weight saved in /" + h5data + '/deconv/Cell2Location')
 
 
-def Save_spt_from_txt(sptFile, txt_file, name, transport=False):
+def Save_smd_from_txt(smdFile, txt_file, name, transport=False):
     count = pd.read_csv(txt_file, sep='\t', index_col=0)
     barcodes = list(str2bytes(count.index))
     features = list(str2bytes(count.columns))
@@ -760,7 +759,7 @@ def Save_spt_from_txt(sptFile, txt_file, name, transport=False):
         count = csr_matrix(count).T
     else:
         count = csr_matrix(count)
-    with h5.File(sptFile, 'a') as f:
+    with h5.File(smdFile, 'a') as f:
         if name not in f:
             f.create_group(name)
         else:
@@ -798,8 +797,8 @@ def Save_spt_from_txt(sptFile, txt_file, name, transport=False):
     print("Save txt finished, matrix data saved in " + name)
 
 
-def Save_spt_from_ref(sptFile, reference: pd.DataFrame, label: pd.DataFrame, name='sc-ref'):
-    with h5.File(sptFile, 'a') as f:
+def Save_smd_from_ref(smdFile, reference: pd.DataFrame, label: pd.DataFrame, name='sc-ref'):
+    with h5.File(smdFile, 'a') as f:
         if name not in f:
             f.create_group(name)
         else:
@@ -840,11 +839,11 @@ def Save_spt_from_ref(sptFile, reference: pd.DataFrame, label: pd.DataFrame, nam
     print("references finished, reference scRNA-seq data saved in " + name)
 
 
-def Save_spt_from_corrcoef(sptFile, coef: pd.DataFrame, dcv_mtd, h5data='matrix'):
+def Save_smd_from_corrcoef(smdFile, coef: pd.DataFrame, dcv_mtd, h5data='matrix'):
     weights = np.array(coef).flatten()
     cell_type = list(str2bytes(coef.index))
     shape = [coef.shape[1], coef.shape[0]]
-    with h5.File(sptFile, 'a') as f:
+    with h5.File(smdFile, 'a') as f:
         if h5data + "/coef" not in f:
             f.create_group(h5data + "/coef")
         if h5data + "/coef/" + dcv_mtd not in f:
@@ -861,7 +860,7 @@ def Save_spt_from_corrcoef(sptFile, coef: pd.DataFrame, dcv_mtd, h5data='matrix'
     print("pearson's R with " + dcv_mtd + " finished, index saved in /" + h5data + '/coef/' + dcv_mtd)
 
 
-def Save_spt_from_BestDict(sptFile, Best_dict: dict):
+def Save_smd_from_BestDict(smdFile, Best_dict: dict):
     col = ["cell-type", "F1-score", "domain", "dct", "dcv", "clu"]
     best_df = pd.DataFrame(columns=col)
     cell_types = Best_dict.keys()
@@ -872,7 +871,7 @@ def Save_spt_from_BestDict(sptFile, Best_dict: dict):
         df_item = pd.DataFrame(data=[ct, Best_item[0], Best_item[1], dct_mtd, dcv_mtd, clu_mtd],
                                index=col, columns=[ct]).T
         best_df = pd.concat([best_df, df_item])
-    with h5.File(sptFile, 'a') as f:
+    with h5.File(smdFile, 'a') as f:
         if "/map_chains" not in f:
             f.create_group("/map_chains")
         else:

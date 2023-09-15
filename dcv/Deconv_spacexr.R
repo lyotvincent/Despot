@@ -9,7 +9,7 @@ source("sptranr/R/_scRNA-seq.R")
 
 # decoding params
 params <- fromJSON(file = "params.json")
-sptFile <- params$sptFile
+smdFile <- params$smdFile
 platform <- params$platform
 if(is.null(platform)){
   platform <- "10X_Visium"  # default using 10X_Visium
@@ -22,13 +22,13 @@ for(decont in params$Decontamination){
     next
   }
   # read References
-  sce <- Load_sptsc_to_SCE(sptFile, "sc-ref")
+  sce <- Load_sptsc_to_SCE(smdFile, "sc-ref")
   anno <- sce$free_annotation
   sce$free_annotation <- gsub("/", "^", anno)   #cell-types in RCTD don't support `/`, transport to `^`
   anno <- table(anno)
-  sr <- Load_spt_to_SpatialRNA(sptFile, h5data)
+  sr <- Load_spt_to_SpatialRNA(smdFile, h5data)
   ref <- GenerateRef_spacexr(sce)
   rctd <- Deconvolution_spacexr(sr, ref)
   rctd@results$weights@Dimnames[[2]] <- attr(anno, "names")
-  Save_spt_from_spacexr(sptFile, h5data, rctd)
+  Save_spt_from_spacexr(smdFile, h5data, rctd)
 }

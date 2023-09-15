@@ -290,11 +290,11 @@ def Easy_Sample(scdata, standard_size=25, add_filter=None):
     scdata0 = scdata[use_cells, HVGs]
     return scdata0
 
-def StereoScope_pp_EasySample(sptFile, out_dir='h5ads', h5data='matrix', standard_size=25 ,add_filter=None):
+def StereoScope_pp_EasySample(smdFile, out_dir='h5ads', h5data='matrix', standard_size=25 ,add_filter=None):
     # load spatial data
-    spdata = Load_spt_to_AnnData(sptFile, h5data)
+    spdata = Load_smd_to_AnnData(smdFile, h5data)
     # load scRNA-seq data
-    scdata = Load_spt_sc_to_AnnData(sptFile)
+    scdata = Load_smd_sc_to_AnnData(smdFile)
     scdata0 = Easy_Sample(scdata, standard_size, add_filter)
 
     # save scRNA-seq data to tsv
@@ -302,14 +302,14 @@ def StereoScope_pp_EasySample(sptFile, out_dir='h5ads', h5data='matrix', standar
     # save ST data to tsv
     Save_tsv_from_spData(out_dir, spdata)
 
-def StereoScope_pp_VAE(sptFile, tempdir='h5ads', h5data='matrix', standard_size=25, add_filter=None, name="temp"):
+def StereoScope_pp_VAE(smdFile, tempdir='h5ads', h5data='matrix', standard_size=25, add_filter=None, name="temp"):
     # load spatial data
-    spdata = Load_spt_to_AnnData(sptFile, h5data)
+    spdata = Load_smd_to_AnnData(smdFile, h5data)
     out_dir = tempdir + "/references/" + name
     Save_tsv_from_spData(out_dir, spdata)
 
     # load scRNA-seq data
-    ref, lbl = Make_References(sptFile, ref_size=standard_size)
+    ref, lbl = Make_References(smdFile, ref_size=standard_size)
     Save_tsv_from_ref(ref, lbl, tempdir, name)
 
 

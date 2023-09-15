@@ -6,7 +6,7 @@
 source("sptranr/R/transpar.R")
 source("sptranr/R/_BayesSpace.R")
 params <- fromJSON(file = "params.json")
-sptFile <- params$sptFile
+smdFile <- params$smdFile
 platform <- params$platform
 if(is.null(platform)){
   platform <- "10X_Visium"  # default using 10X_Visium
@@ -18,9 +18,9 @@ for(decont in params$Decontamination){
     message("SpotClean only Support 10X Visium data, skip it.")
     next
   }
-  Bayes <- Load_spt_to_SCE(sptFile, h5data = h5data)
+  Bayes <- Load_spt_to_SCE(smdFile, h5data = h5data)
   Bayes <- Cluster_BayesSpace(Bayes)
-  Save_spt_from_BayesSpace(sptFile, Bayes, save.enhanced = F, h5data = h5data)
+  Save_spt_from_BayesSpace(smdFile, Bayes, save.enhanced = F, h5data = h5data)
 }
 
 

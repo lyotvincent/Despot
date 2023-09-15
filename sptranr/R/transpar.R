@@ -20,50 +20,50 @@ Make_unique <- function(arr){
   return(arr)
 }
 
-# Initialize a h5spt file at the beginning of pipline
-Init_spt <- function(sptFile){
+# Initialize a h5smd file at the beginning of pipline
+Init_smd <- function(smdFile){
   # create a temp file
-  h5createFile(sptFile)
+  h5createFile(smdFile)
 
   # create the metadata
-  rhdf5::h5createGroup(sptFile, "metadata")
+  rhdf5::h5createGroup(smdFile, "metadata")
 
   # create first group `matrix`
-  rhdf5::h5createGroup(sptFile, "matrix")
+  rhdf5::h5createGroup(smdFile, "matrix")
   # create `features`
-  rhdf5::h5createGroup(sptFile, "matrix/features")
+  rhdf5::h5createGroup(smdFile, "matrix/features")
   # create `is_HVG`
-  rhdf5::h5createGroup(sptFile, "matrix/features/is_HVG")
+  rhdf5::h5createGroup(smdFile, "matrix/features/is_HVG")
   # create `idents`
-  rhdf5::h5createGroup(sptFile, "matrix/idents")
+  rhdf5::h5createGroup(smdFile, "matrix/idents")
   # create `deconv`
-  rhdf5::h5createGroup(sptFile, "matrix/deconv")
+  rhdf5::h5createGroup(smdFile, "matrix/deconv")
   # create `benchmark`
-  rhdf5::h5createGroup(sptFile, "matrix/benchmark")
+  rhdf5::h5createGroup(smdFile, "matrix/benchmark")
 
-  # create second group `sptimages`
-  rhdf5::h5createGroup(sptFile, "sptimages")
+  # create second group `smdimages`
+  rhdf5::h5createGroup(smdFile, "sptimages")
   # create `scalefactors`
-  rhdf5::h5createGroup(sptFile, "sptimages/scalefactors")
+  rhdf5::h5createGroup(smdFile, "sptimages/scalefactors")
   # create `coordinates`
-  rhdf5::h5createGroup(sptFile, "sptimages/coordinates")
+  rhdf5::h5createGroup(smdFile, "sptimages/coordinates")
 
 }
 
-# Recording configs in sptFile
-Save_cfg_to_spt <- function(sptFile, params){
+# Recording configs in smdFile
+Save_cfg_to_smd <- function(smdFile, params){
   # create group `configs`
-  rhdf5::h5createGroup(sptFile, "configs")
+  rhdf5::h5createGroup(smdFile, "configs")
   for(par in names(params)){
     print(class(params[[par]]))
-    Create_spt_array1d(sptFile, params[[par]], paste0("configs/", par), class(params[[par]]))
+    Create_smd_array1d(smdFile, params[[par]], paste0("configs/", par), class(params[[par]]))
   }
   message("Configs are Loaded.")
 }
 
 
-# Save ground.truth to spt
-Save_gt_to_spt <- function(sptFile, ground.truth, ground.sep=',', ground.name='ground_truth'){
+# Save ground.truth to smd
+Save_gt_to_smd <- function(smdFile, ground.truth, ground.sep=',', ground.name='ground_truth'){
   # Save ground_truth
   print(ground.truth)
   if(file.exists(ground.truth)){
@@ -71,22 +71,22 @@ Save_gt_to_spt <- function(sptFile, ground.truth, ground.sep=',', ground.name='g
     rownames(gtable) <- gtable[[1]]
     gtable <- gtable[order(rownames(gtable)),]
     gt <- gtable[[ground.name]]
-    Create_spt_array1d(sptFile, gt, "matrix/idents/ground_truth", "character")
+    Create_smd_array1d(smdFile, gt, "matrix/idents/ground_truth", "character")
   }else{
     message("No ground truth for this data.")
   }
 }
 
-# Save ST data to spt
-Save_ST_to_spt <- function(st, sptFile, name=""){
+# Save ST data to smd
+Save_ST_to_smd <- function(st, smdFile, name=""){
   library(stringr)
   # Save name
   if(length(name) != 0){
-    Create_spt_array1d(sptFile, name, "name", "character")
+    Create_smd_array1d(smdFile, name, "name", "character")
   }
 
   # Save platform
-  Create_spt_array1d(sptFile, "ST", "platform", "character")
+  Create_smd_array1d(smdFile, "ST", "platform", "character")
 
   # Save matrix
   mat <- fread(st)
@@ -95,12 +95,12 @@ Save_ST_to_spt <- function(st, sptFile, name=""){
   rownames(mat) <- fea
   bar <- colnames(mat)
   mat <- as(mat, "CsparseMatrix")
-  Create_spt_array1d(sptFile, toupper(bar), "matrix/barcodes", "character")
-  Create_spt_array1d(sptFile, fea, "matrix/features/name", "character")
-  Create_spt_array1d(sptFile, mat@x, "matrix/data", "integer")
-  Create_spt_array1d(sptFile, mat@i, "matrix/indices", "integer")
-  Create_spt_array1d(sptFile, mat@p, "matrix/indptr", "integer")
-  Create_spt_array1d(sptFile, mat@Dim, "matrix/shape", "integer")
+  Create_smd_array1d(smdFile, toupper(bar), "matrix/barcodes", "character")
+  Create_smd_array1d(smdFile, fea, "matrix/features/name", "character")
+  Create_smd_array1d(smdFile, mat@x, "matrix/data", "integer")
+  Create_smd_array1d(smdFile, mat@i, "matrix/indices", "integer")
+  Create_smd_array1d(smdFile, mat@p, "matrix/indptr", "integer")
+  Create_smd_array1d(smdFile, mat@Dim, "matrix/shape", "integer")
 
   # Save coordinates
   coor <- str_split(bar, '[xX]')
@@ -110,31 +110,31 @@ Save_ST_to_spt <- function(st, sptFile, name=""){
   coor <- data.frame(coor)
   coor <- as.data.frame(lapply(coor,as.numeric))
   coor$tissue <- rep(1, length(coor$row))
-  Create_spt_array1d(sptFile, toupper(bar), "sptimages/coordinates/index", "character")
-  Create_spt_array1d(sptFile, coor$tissue, "sptimages/coordinates/tissue", "integer")
-  Create_spt_array1d(sptFile, coor$row, "sptimages/coordinates/row", "integer")
-  Create_spt_array1d(sptFile, coor$col, "sptimages/coordinates/col", "integer")
-  Create_spt_array1d(sptFile, coor$row, "sptimages/coordinates/imagerow", "integer")
-  Create_spt_array1d(sptFile, coor$col, "sptimages/coordinates/imagecol", "integer")
+  Create_smd_array1d(smdFile, toupper(bar), "sptimages/coordinates/index", "character")
+  Create_smd_array1d(smdFile, coor$tissue, "sptimages/coordinates/tissue", "integer")
+  Create_smd_array1d(smdFile, coor$row, "sptimages/coordinates/row", "integer")
+  Create_smd_array1d(smdFile, coor$col, "sptimages/coordinates/col", "integer")
+  Create_smd_array1d(smdFile, coor$row, "sptimages/coordinates/imagerow", "integer")
+  Create_smd_array1d(smdFile, coor$col, "sptimages/coordinates/imagecol", "integer")
 
 }
 
-# Save 10X data to spt
-Save_10X_to_spt <- function(dir, sptFile, filtered.matrix = T, name = "",
+# Save 10X data to smd
+Save_10X_to_smd <- function(dir, smdFile, filtered.matrix = T, name = "",
                             ground.truth = NULL, ground.sep = ",",
                             ground.name = "ground_truth", save.hires = F){
   library(stringr)
   # Save name
   if(length(name) != 0){
-    Create_spt_array1d(sptFile, name, "name", "character")
+    Create_smd_array1d(smdFile, name, "name", "character")
   }
 
   # Save platform
-  Create_spt_array1d(sptFile, "10X_Visium", "name", "character")
+  Create_smd_array1d(smdFile, "10X_Visium", "name", "character")
 
   # Save ground_truth
   if(!is.null(ground.truth)){
-    Save_gt_to_spt(sptFile, ground.truth = ground.truth, ground.name = ground.name)
+    Save_gt_to_smd(smdFile, ground.truth = ground.truth, ground.name = ground.name)
   }
   # whether .h5 file in the fold, if not load data from subdictionary: feature_bc_matrix
   h5dir <- ifelse(filtered.matrix,
@@ -179,16 +179,16 @@ Save_10X_to_spt <- function(dir, sptFile, filtered.matrix = T, name = "",
   # read in lowres, scalefactors, positions
   sf <- fromJSON(file = paste0(imgdir, "/scalefactors_json.json"))
   if(save.hires){
-    loc <- H5Fopen(sptFile)
+    loc <- H5Fopen(smdFile)
     if(H5Lexists(loc, "sptimages/hires")){
       H5Ldelete(loc, "sptimages/hires")
     }
     H5close()
     hires <- readPNG(paste0(imgdir, "/tissue_hires_image.png"))
-    rhdf5::h5createDataset(sptFile, "sptimages/hires",
+    rhdf5::h5createDataset(smdFile, "sptimages/hires",
                            dim(hires), storage.mode = "double",
                            chunk = c(50, 50, 3))
-    rhdf5::h5write(hires, sptFile, "sptimages/hires")
+    rhdf5::h5write(hires, smdFile, "sptimages/hires")
   }
 
   img <- Read10X_Image(imgdir, filter.matrix = F)
@@ -196,15 +196,15 @@ Save_10X_to_spt <- function(dir, sptFile, filtered.matrix = T, name = "",
   img@scale.factors$spot <- sf$spot_diameter_fullres
   image <- img@image
 
-  loc <- H5Fopen(sptFile)
+  loc <- H5Fopen(smdFile)
   if(H5Lexists(loc, "sptimages/lowres")){
     H5Ldelete(loc, "sptimages/lowres")
   }
   H5close()
-  rhdf5::h5createDataset(sptFile, "sptimages/lowres",
+  rhdf5::h5createDataset(smdFile, "sptimages/lowres",
                          dim(image), storage.mode = "double",
                          chunk = c(50, 50, 3))
-  rhdf5::h5write(image, sptFile, "sptimages/lowres")
+  rhdf5::h5write(image, smdFile, "sptimages/lowres")
 
   coord <- img@coordinates
   coord <- coord[order(rownames(coord)), ]
@@ -215,42 +215,42 @@ Save_10X_to_spt <- function(dir, sptFile, filtered.matrix = T, name = "",
 
   # save names
   for(fac in attr(img@scale.factors, "names")){
-    Create_spt_array1d(sptFile, img@scale.factors[[fac]],
+    Create_smd_array1d(smdFile, img@scale.factors[[fac]],
                        paste0("sptimages/scalefactors/", fac),"double")
   }
 
   # save gene expression
-  Create_spt_array1d(sptFile, toupper(h5_obj$barcodes), "matrix/barcodes", "character")
-  Create_spt_array1d(sptFile, h5_obj$data, "matrix/data", "integer")
-  Create_spt_array1d(sptFile, h5_obj$indices, "matrix/indices", "integer")
-  Create_spt_array1d(sptFile, h5_obj$indptr, "matrix/indptr", "integer")
-  Create_spt_array1d(sptFile, h5_obj$shape, "matrix/shape", "integer")
+  Create_smd_array1d(smdFile, toupper(h5_obj$barcodes), "matrix/barcodes", "character")
+  Create_smd_array1d(smdFile, h5_obj$data, "matrix/data", "integer")
+  Create_smd_array1d(smdFile, h5_obj$indices, "matrix/indices", "integer")
+  Create_smd_array1d(smdFile, h5_obj$indptr, "matrix/indptr", "integer")
+  Create_smd_array1d(smdFile, h5_obj$shape, "matrix/shape", "integer")
 
   for(fea in attr(h5_obj$features, "names")){
-    Create_spt_array1d(sptFile, toupper(h5_obj$features[[fea]]),
+    Create_smd_array1d(smdFile, toupper(h5_obj$features[[fea]]),
                        paste0("matrix/features/", fea), "character")
   }
 
   # save spatial_locs
   for(coo in colnames(coord)){
-    Create_spt_array1d(sptFile, coord[[coo]],
+    Create_smd_array1d(smdFile, coord[[coo]],
                        paste0("sptimages/coordinates/", coo), "integer")
   }
   index <- rownames(coord)
-  Create_spt_array1d(sptFile, toupper(index),
+  Create_smd_array1d(smdFile, toupper(index),
                      "sptimages/coordinates/index", "character")
-  Create_spt_array1d(sptFile, img@spot.radius, "sptimages/spot_radius", "double")
+  Create_smd_array1d(smdFile, img@spot.radius, "sptimages/spot_radius", "double")
 }
 
-# Save SlideSeq data to spt
-Save_SlideSeq_to_spt <- function(dir, sptFile, name=""){
+# Save SlideSeq data to smd
+Save_SlideSeq_to_smd <- function(dir, smdFile, name=""){
   # Save name
   if(length(name) != 0){
-    Create_spt_array1d(sptFile, name, "name", "character")
+    Create_smd_array1d(smdFile, name, "name", "character")
   }
 
   # Save platform
-  Create_spt_array1d(sptFile, "Slide-seq", "platform", "character")
+  Create_smd_array1d(smdFile, "Slide-seq", "platform", "character")
 
   countdir <- paste0(dir, "/Puck.count")
   idxdir <- paste0(dir, "/Puck.idx")
@@ -264,23 +264,23 @@ Save_SlideSeq_to_spt <- function(dir, sptFile, name=""){
   colnames(count) <- barcodes$barcodes
   count <- Matrix(data = as.matrix(count))
 
-  Create_spt_array1d(sptFile, barcodes$barcodes, "matrix/barcodes", "character")
-  Create_spt_array1d(sptFile, count@x, "matrix/data", "integer")
-  Create_spt_array1d(sptFile, count@i, "matrix/indices", "integer")
-  Create_spt_array1d(sptFile, count@p, "matrix/indptr", "integer")
-  Create_spt_array1d(sptFile, count@Dim, "matrix/shape", "integer")
+  Create_smd_array1d(smdFile, barcodes$barcodes, "matrix/barcodes", "character")
+  Create_smd_array1d(smdFile, count@x, "matrix/data", "integer")
+  Create_smd_array1d(smdFile, count@i, "matrix/indices", "integer")
+  Create_smd_array1d(smdFile, count@p, "matrix/indptr", "integer")
+  Create_smd_array1d(smdFile, count@Dim, "matrix/shape", "integer")
 
   for(fea in attr(features, "names")){
-    Create_spt_array1d(sptFile, features[[fea]],
+    Create_smd_array1d(smdFile, features[[fea]],
                        paste0("matrix/features/", fea), "character")
   }
 
   for(coo in attr(coord, "names")){
-    Create_spt_array1d(sptFile, coord[[coo]],
+    Create_smd_array1d(smdFile, coord[[coo]],
                        paste0("sptimages/coordinates/", coo), "integer")
   }
   index <- rownames(coord)
-  Create_spt_array1d(sptFile, index,
+  Create_smd_array1d(smdFile, index,
                      "sptimages/coordinates/index", "character")
 }
 
@@ -291,15 +291,15 @@ cal_chunk <- function(dimlen){
   return(chunk)
 }
 
-Create_spt_group <- function(sptFile, group){
-  loc <- H5Fopen(sptFile)
+Create_smd_group <- function(smdFile, group){
+  loc <- H5Fopen(smdFile)
   if(!H5Lexists(loc, group)){
-    h5createGroup(sptFile, sptloc)
+    h5createGroup(smdFile, sptloc)
   }
   H5close()
 }
 
-Create_spt_array1d <- function(sptFile, arr, sptloc, mode){
+Create_smd_array1d <- function(smdFile, arr, smdloc, mode){
   arr_len <- length(arr)
   arr_chunk <- cal_chunk(arr_len)
   if(mode == "character"){
@@ -308,20 +308,20 @@ Create_spt_array1d <- function(sptFile, arr, sptloc, mode){
       sz <- 1
     }
   }
-  loc <- H5Fopen(sptFile)
-  if(H5Lexists(loc, sptloc)){
-    H5Ldelete(loc, sptloc)
+  loc <- H5Fopen(smdFile)
+  if(H5Lexists(loc, smdloc)){
+    H5Ldelete(loc, smdloc)
   }
   H5close()
-  rhdf5::h5createDataset(sptFile, sptloc,
+  rhdf5::h5createDataset(smdFile, smdloc,
                          dims = arr_len,
                          storage.mode = mode,
                          size = sz,
                          chunk = arr_chunk)
-  rhdf5::h5write(arr, sptFile, sptloc)
+  rhdf5::h5write(arr, smdFile, smdloc)
 }
 
-Create_spt_h5data <- function(decont){
+Create_smd_h5data <- function(decont){
   h5data <- "matrix"
   if(decont == "SpotClean"){
     h5data <- "SpotClean_mat"
@@ -335,24 +335,24 @@ Create_spt_h5data <- function(decont){
   return(h5data)
 }
 
-# Load spt to Seurat
-Load_spt_to_Seurat <- function(sptFile, platform="10X_Visium", imgdir = "", h5data='matrix'){
+# Load smd to Seurat
+Load_smd_to_Seurat <- function(smdFile, platform="10X_Visium", imgdir = "", h5data='matrix'){
   library(Seurat)
-  seu_obj <- Load_h5_to_Seurat(sptFile, h5data)
-  # h5img <- rhdf5::h5read(sptFile, "sptimages")
+  seu_obj <- Load_h5_to_Seurat(smdFile, h5data)
+  # h5img <- rhdf5::h5read(smdFile, "sptimages")
   if (platform == "10X_Visium"){
     seu_obj <- Load_img_to_Seurat(imgdir, seu_obj)
   }
   return(seu_obj)
 }
 
-Load_h5_to_Seurat <- function(sptFile, h5data = 'matrix', assay = "Spatial"){
+Load_h5_to_Seurat <- function(smdFile, h5data = 'matrix', assay = "Spatial"){
   library(Seurat)
   library(stringr)
   # find if need to do subset
   datas <- strsplit(h5data, '/')[[1]]
   data0 <- datas[1]
-  h5mat <- rhdf5::h5read(sptFile, data0)
+  h5mat <- rhdf5::h5read(smdFile, data0)
   feature.name <- as.character(toupper(h5mat$features$name))
   barcodes <- as.character(toupper(h5mat$barcodes))
   dat <- sparseMatrix(i = h5mat$indices[] + 1,
@@ -405,120 +405,120 @@ Load10Xh5_to_Seurat <- function(dir, filtered.matrix = T,
 }
 
 
-Save_spt_from_Seurat <- function(sptFile, seu, h5data = 'matrix'){
+Save_smd_from_Seurat <- function(smdFile, seu, h5data = 'matrix'){
 
-  sptloc = paste0(h5data, '/idents/Seurat')
+  smdloc = paste0(h5data, '/idents/Seurat')
   # create `idents` in matrix
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = as.numeric(seu$seurat_clusters),
-                     sptloc = sptloc,
+                     smdloc = smdloc,
                      mode = "integer")
 }
 
 
-Save_spt_from_BayesSpace <-function (sptFile, Bayes,
+Save_smd_from_BayesSpace <-function (smdFile, Bayes,
                                      save.enhanced = F, h5data = 'matrix'){
 
-  sptloc = paste0(h5data, '/idents/BayesSpace')
+  smdloc = paste0(h5data, '/idents/BayesSpace')
   # create `idents` in matrix
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = Bayes@colData@listData$spatial.cluster,
-                     sptloc = sptloc,
+                     smdloc = smdloc,
                      mode = "integer")
 
   # create `is_HVG` group in features, which is differed by methods
-  # sptloc = paste0(h5data, '/features/is_HVG/BayesSpace')
-  # Create_spt_array1d(sptFile,
+  # smdloc = paste0(h5data, '/features/is_HVG/BayesSpace')
+  # Create_smd_array1d(smdFile,
   #                    arr = Bayes@rowRanges@elementMetadata@listData$is.HVG,
-  #                    sptloc = sptloc,
+  #                    smdloc = smdloc,
   #                    mode = "logical")
 
   # save enhance
   if(save.enhanced == TRUE){
-    rhdf5::h5createGroup(sptFile, "sptimages/enhance")
+    rhdf5::h5createGroup(smdFile, "sptimages/enhance")
     for(enh in attr(Bayes@colData@listData, "names")){
-      Create_spt_array1d(sptFile,
+      Create_smd_array1d(smdFile,
                          arr = Bayes@colData@listData[[enh]],
-                         sptloc = paste0("sptimages/enhance/", gsub("\\.", "_", enh)),
+                         smdloc = paste0("sptimages/enhance/", gsub("\\.", "_", enh)),
                          mode = "double")
     }
-    Create_spt_array1d(sptFile,
+    Create_smd_array1d(smdFile,
                        arr = Bayes@colData@rownames,
-                       sptloc = "sptimages/enhance/spotnames",
+                       smdloc = "sptimages/enhance/spotnames",
                        mode = "character")
   }
 }
 
-Save_spt_from_SPARK <- function(sptFile, sparkX, h5data = 'matrix'){
+Save_smd_from_SPARK <- function(smdFile, sparkX, h5data = 'matrix'){
 
-  rhdf5::h5createGroup(sptFile, paste0(h5data, "/features/is_HVG/SPARK"))
+  rhdf5::h5createGroup(smdFile, paste0(h5data, "/features/is_HVG/SPARK"))
 
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = attr(sparkX$stats, "dimnames")[[1]],
-                     sptloc = paste0(h5data, "/features/is_HVG/SPARK/name"),
+                     smdloc = paste0(h5data, "/features/is_HVG/SPARK/name"),
                      mode = "character")
 
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = sparkX$res_mtest$combinedPval,
-                     sptloc = paste0(h5data, "/features/is_HVG/SPARK/pval"),
+                     smdloc = paste0(h5data, "/features/is_HVG/SPARK/pval"),
                      mode = "double")
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = sparkX$res_mtest$adjustedPval,
-                     sptloc = paste0(h5data, "/features/is_HVG/SPARK/qval"),
+                     smdloc = paste0(h5data, "/features/is_HVG/SPARK/qval"),
                      mode = "double")
 }
 
 
-Save_spt_from_Seurat.markers <- function(sptFile, de_markers, h5data = 'matrix'){
-  rhdf5::h5createGroup(sptFile, paste0(h5data, "/features/is_HVG/Seurat"))
-  Create_spt_array1d(sptFile,
+Save_smd_from_Seurat.markers <- function(smdFile, de_markers, h5data = 'matrix'){
+  rhdf5::h5createGroup(smdFile, paste0(h5data, "/features/is_HVG/Seurat"))
+  Create_smd_array1d(smdFile,
                      arr = de_markers$gene,
-                     sptloc = paste0(h5data, "/features/is_HVG/Seurat/name"),
+                     smdloc = paste0(h5data, "/features/is_HVG/Seurat/name"),
                      mode = "character")
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = as.numeric(de_markers$cluster),
-                     sptloc = paste0(h5data, "/features/is_HVG/Seurat/cluster"),
+                     smdloc = paste0(h5data, "/features/is_HVG/Seurat/cluster"),
                      mode = "integer")
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = de_markers$p_val,
-                     sptloc = paste0(h5data, "/features/is_HVG/Seurat/pval"),
+                     smdloc = paste0(h5data, "/features/is_HVG/Seurat/pval"),
                      mode = "double")
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = de_markers$p_val_adj,
-                     sptloc = paste0(h5data, "/features/is_HVG/Seurat/qval"),
+                     smdloc = paste0(h5data, "/features/is_HVG/Seurat/qval"),
                      mode = "double")
 }
 
 
-Save_spt_from_Giotto_clu <- function(sptFile, gobj, h5data = 'matrix'){
-  sptloc = paste0(h5data, '/idents/Giotto')
+Save_smd_from_Giotto_clu <- function(smdFile, gobj, h5data = 'matrix'){
+  smdloc = paste0(h5data, '/idents/Giotto')
   # create `idents` in matrix
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = as.numeric(gobj@cell_metadata$leiden_clus),
-                     sptloc = sptloc,
+                     smdloc = smdloc,
                      mode = "integer")
 }
 
-Save_spt_from_Giotto_est <- function(sptFile, spatialgenes, h5data = 'matrix'){
+Save_smd_from_Giotto_est <- function(smdFile, spatialgenes, h5data = 'matrix'){
 
-  rhdf5::h5createGroup(sptFile, paste0(h5data, "/features/is_HVG/Giotto"))
+  rhdf5::h5createGroup(smdFile, paste0(h5data, "/features/is_HVG/Giotto"))
 
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = spatialgenes$genes,
-                     sptloc = paste0(h5data, "/features/is_HVG/Giotto/name"),
+                     smdloc = paste0(h5data, "/features/is_HVG/Giotto/name"),
                      mode = "character")
 
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = spatialgenes$p.value,
-                     sptloc = paste0(h5data, "/features/is_HVG/Giotto/pval"),
+                     smdloc = paste0(h5data, "/features/is_HVG/Giotto/pval"),
                      mode = "double")
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = spatialgenes$adj.p.value,
-                     sptloc = paste0(h5data, "/features/is_HVG/Giotto/qval"),
+                     smdloc = paste0(h5data, "/features/is_HVG/Giotto/qval"),
                      mode = "double")
 }
 
-Save_spt_from_Giotto_dcv <- function(sptFile, gobj, h5data = 'matrix'){
+Save_smd_from_Giotto_dcv <- function(smdFile, gobj, h5data = 'matrix'){
   result <- gobj@spatial_enrichment$DWLS
 
   barcodes <- result[[1]]
@@ -526,32 +526,32 @@ Save_spt_from_Giotto_dcv <- function(sptFile, gobj, h5data = 'matrix'){
   cell_type <- colnames(result)
   result <- as.matrix(result)
   result <- as(result, "dgeMatrix")
-  h5createGroup(sptFile, paste0(h5data, '/deconv/Giotto'))
+  h5createGroup(smdFile, paste0(h5data, '/deconv/Giotto'))
 
   # save 1d weights
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = result@x,
-                     sptloc = paste0(h5data, '/deconv/Giotto/weights'),
+                     smdloc = paste0(h5data, '/deconv/Giotto/weights'),
                      mode = 'double')
   # save shape
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = result@Dim,
-                     sptloc = paste0(h5data, '/deconv/Giotto/shape'),
+                     smdloc = paste0(h5data, '/deconv/Giotto/shape'),
                      mode = 'integer')
   # save dim names
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = barcodes,
-                     sptloc = paste0(h5data, '/deconv/Giotto/barcodes'),
+                     smdloc = paste0(h5data, '/deconv/Giotto/barcodes'),
                      mode = 'character')
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = cell_type,
-                     sptloc = paste0(h5data, '/deconv/Giotto/cell_type'),
+                     smdloc = paste0(h5data, '/deconv/Giotto/cell_type'),
                      mode = 'character')
 
 }
 
-# spt to SingleCellExperiment object
-Load_spt_to_SCE <- function(sptFile, h5data = 'matrix'){
+# smd to SingleCellExperiment object
+Load_smd_to_SCE <- function(smdFile, h5data = 'matrix'){
   library(SingleCellExperiment)
   library(SummarizedExperiment)
 
@@ -559,10 +559,10 @@ Load_spt_to_SCE <- function(sptFile, h5data = 'matrix'){
   datas <- strsplit(h5data, '/')[[1]]
   data0 <- datas[1]
 
-  h5mat <- rhdf5::h5read(sptFile, data0)
+  h5mat <- rhdf5::h5read(smdFile, data0)
   feature.name <- as.character(toupper(h5mat$features$name))
   barcodes <- as.character(toupper(h5mat$barcodes))
-  h5img <- rhdf5::h5read(sptFile, "sptimages")
+  h5img <- rhdf5::h5read(smdFile, "sptimages")
   dat <- sparseMatrix(i = h5mat$indices[] + 1,
                       p = h5mat$indptr[],
                       x = as.numeric(h5mat$data[]),
@@ -604,8 +604,8 @@ Load_spt_to_SCE <- function(sptFile, h5data = 'matrix'){
 }
 
 
-# spt to Giotto object
-Load_spt_to_Giotto <- function(sptFile, h5data = 'matrix',
+# smd to Giotto object
+Load_smd_to_Giotto <- function(smdFile, h5data = 'matrix',
                                python_path = '~/anaconda3/envs/spatial/bin/python',
                                temp_dir = 'h5ads'){
   library(Giotto)
@@ -621,10 +621,10 @@ Load_spt_to_Giotto <- function(sptFile, h5data = 'matrix',
   data0 <- datas[1]
 
   # read the origin file with features, barcodes and images
-  h5_obj <- rhdf5::h5read(sptFile, data0)
+  h5_obj <- rhdf5::h5read(smdFile, data0)
   feature.name <- toupper(h5_obj$features$name)
   barcodes <- toupper(h5_obj$barcodes)
-  h5img <- rhdf5::h5read(sptFile, "sptimages")
+  h5img <- rhdf5::h5read(smdFile, "sptimages")
 
   # load spatial locations
   spatial_locs <- data.frame(row.names = h5img$coordinates$index,
@@ -654,18 +654,18 @@ Load_spt_to_Giotto <- function(sptFile, h5data = 'matrix',
   return(gobj)
 }
 
-# spt to SpatialExperiment object
-Load_spt_to_SE <- function(sptFile, h5data = 'matrix', platform="10X_Visium"){
+# smd to SpatialExperiment object
+Load_smd_to_SE <- function(smdFile, h5data = 'matrix', platform="10X_Visium"){
 
   library(SpatialExperiment)
   # find if need to do subset
   datas <- strsplit(h5data, '/')[[1]]
   data0 <- datas[1]
 
-  h5mat <- rhdf5::h5read(sptFile, data0)
+  h5mat <- rhdf5::h5read(smdFile, data0)
   feature.name <- as.character(toupper(h5mat$features$name))
   barcodes <- as.character(toupper(h5mat$barcodes))
-  h5img <- rhdf5::h5read(sptFile, "sptimages")
+  h5img <- rhdf5::h5read(smdFile, "sptimages")
   # read in spatial coordinates
   coord <- data.frame(h5img$coordinates,
                       row.names = h5img$coordinates$index)
@@ -715,15 +715,15 @@ Load_spt_to_SE <- function(sptFile, h5data = 'matrix', platform="10X_Visium"){
   return(spe)
 }
 
-# spt to SPARK object
-Load_spt_to_SPARK <- function(sptFile, h5data = 'matrix'){
+# smd to SPARK object
+Load_smd_to_SPARK <- function(smdFile, h5data = 'matrix'){
   library(SPARK)
 
   # find if need to do subset
   datas <- strsplit(h5data, '/')[[1]]
   data0 <- datas[1]
 
-  h5mat <- rhdf5::h5read(sptFile, data0)
+  h5mat <- rhdf5::h5read(smdFile, data0)
   feature.name <- as.character(toupper(h5mat$features$name))
   barcodes <- as.character(toupper(h5mat$barcodes))
 
@@ -733,7 +733,7 @@ Load_spt_to_SPARK <- function(sptFile, h5data = 'matrix'){
                       dims = h5mat$shape[],
                       dimnames = list(feature.name, barcodes),
                       repr = "C")
-  h5img <- rhdf5::h5read(sptFile, "sptimages")
+  h5img <- rhdf5::h5read(smdFile, "sptimages")
   spatial_locs <- data.frame(x = h5img$coordinates$row, y = h5img$coordinates$col)
   rownames(spatial_locs) <- colnames(dat)
 
@@ -757,18 +757,18 @@ Load_spt_to_SPARK <- function(sptFile, h5data = 'matrix'){
   return(spark)
 }
 
-# spt to SpatialRNA object
-Load_spt_to_SpatialRNA <- function(sptFile, h5data = 'matrix'){
+# smd to SpatialRNA object
+Load_smd_to_SpatialRNA <- function(smdFile, h5data = 'matrix'){
   library(spacexr)
   library(SeuratObject)
   # find if need to do subset
   datas <- strsplit(h5data, '/')[[1]]
   data0 <- datas[1]
 
-  h5mat <- rhdf5::h5read(sptFile, data0)
+  h5mat <- rhdf5::h5read(smdFile, data0)
   feature.name <- as.character(toupper(h5mat$features$name))
   barcodes <- as.character(toupper(h5mat$barcodes))
-  h5img <- rhdf5::h5read(sptFile, "sptimages")
+  h5img <- rhdf5::h5read(smdFile, "sptimages")
   # create coords for SpatialRNA
   spatial_locs <- data.frame(x = h5img$coordinates$row,
                       y = h5img$coordinates$col,
@@ -800,11 +800,11 @@ Load_spt_to_SpatialRNA <- function(sptFile, h5data = 'matrix'){
 }
 
 # some sofrwares only support .tsv files, so we provide the interface
-Save_spt_to_tsv <- function(sptFile, outdir){
+Save_smd_to_tsv <- function(smdFile, outdir){
   if(!dir.exists(outdir)){
     dir.create(outdir)
   }
-  h5mat <- rhdf5::h5read(sptFile, '/matrix')
+  h5mat <- rhdf5::h5read(smdFile, '/matrix')
 
   # genereate CsparseMatrix in counts
   counts <- sparseMatrix(i = h5mat$indices[] + 1,
@@ -818,4 +818,4 @@ Save_spt_to_tsv <- function(sptFile, outdir){
 }
 
 
-# some softwares provide .txt outputs, we save them to sptFile
+# some softwares provide .txt outputs, we save them to smdFile

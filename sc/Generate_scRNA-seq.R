@@ -8,7 +8,7 @@ source("sptranr/R/_scRNA-seq.R")
 
 # decoding params
 params <- fromJSON(file = "params.json")
-sptFile <- params$sptFile
+smdFile <- params$smdFile
 dataPath <- params$dataPath
 scdir <- params$scDataPath
 scMarkers <- params$scMarkers
@@ -35,4 +35,4 @@ if(scType == "Any"){
   sce <- Analysis_scRNA_seq(sce)
 }
 
-Save_scRNAseq_to_spt(sptFile, sce)
+Save_scRNAseq_to_smd(smdFile, sce)

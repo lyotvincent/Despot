@@ -11,7 +11,7 @@
   "R_library_Path": "sptranr/R",
   "name": "colon_d0",
   "filter_matrix": true,
-  "sptFile": "h5ads/colon_d0.h5spt",
+  "sptFile": "h5ads/Intestine.h5spt",
   "ground_truth": "cluster_labels.csv",
   "load_lowres": true,
   "load_hires": true,

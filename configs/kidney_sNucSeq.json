@@ -13,6 +13,7 @@
   "name": "FFPE_Mouse_Kidney_sNucSeq",
   "filter_matrix": true,
   "sptFile": "h5ads/FFPE_Mouse_Kidney_sNucSeq.h5spt",
+  "smdFile": "h5ads/FFPE_Mouse_Kidney_sNucSeq.h5spt",
   "ground_truth": "class.csv",
   "scDataPath": "data/scRNA-seq/Adult_Mouse_Kidney",
   "scType": "h5ad",

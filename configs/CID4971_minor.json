@@ -13,6 +13,7 @@
   "name": "CID4971_TNBC_minor",
   "filter_matrix": true,
   "sptFile": "h5ads/CID4971_minor1.h5spt",
+  "smdFile": "h5ads/CID4971_minor1.h5spt",
   "ground_truth": "CID44971_metadata.csv",
   "ground_name": "Classification",
   "scDataPath": "data/human_breast_cancer_atlas/GSE176078_RAW/GSM5354531_CID44971/CID44971",

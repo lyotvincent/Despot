@@ -10,12 +10,12 @@ from vsl.boundary import boundary_extract, show_edge
 from PIL import Image
 
 
-# report the sptFile, including brief information, umap graphs, deconvolution composition
+# report the smdFile, including brief information, umap graphs, deconvolution composition
 # PVL mapping right
 # B-cell mapping wrong
-def spTRS_report(sptFile, count="matrix"):
+def Despot_report(smdFile, count="matrix"):
     # report brief information
-    adata = Load_spt_to_AnnData(sptFile, count)
+    adata = Load_smd_to_AnnData(smdFile, count)
     figd, axsd = plt.subplots(1, 1, figsize=(6, 6), constrained_layout=True)
     sc.pl.spatial(adata, color="ground_truth", show=False, ax=axsd)
     figd.savefig("spatial1.pdf")
@@ -51,8 +51,8 @@ def spTRS_report(sptFile, count="matrix"):
     axse.legend(W.columns, loc=2, bbox_to_anchor=(1.0, 1.0), borderaxespad=0.)
 
 
-def Show_Origin_histology(sptFile, figname, hires=True, key=None):
-    adata = Load_spt_to_AnnData(sptFile, hires=hires)
+def Show_Origin_histology(smdFile, figname, hires=True, key=None):
+    adata = Load_smd_to_AnnData(smdFile, hires=hires)
     fig, axs = plt.subplots(1, 1, figsize=(6, 3), constrained_layout=True)
     sc.pl.spatial(adata, img_key='hires', ax=axs, color=key)
     fig.savefig(figname, dpi=400)
@@ -362,8 +362,8 @@ def Show_prop_domains(adata, clu_mtd, dcv_mtd, domains, cell_type, f1score, plat
     return fig
 
 
-def Show_Spatial(sptFile, figname, key, h5data='matrix', do_cluster=True, platform="10X_Visium", title=''):
-    adata = Load_spt_to_AnnData(sptFile, h5data, platform=platform)
+def Show_Spatial(smdFile, figname, key, h5data='matrix', do_cluster=True, platform="10X_Visium", title=''):
+    adata = Load_smd_to_AnnData(smdFile, h5data, platform=platform)
     fig, axs = plt.subplots(1, 1, figsize=(4, 3), constrained_layout=True)
     if do_cluster:
         adata = Remove_mito_genes(adata)
@@ -377,8 +377,8 @@ def Show_Spatial(sptFile, figname, key, h5data='matrix', do_cluster=True, platfo
     fig.savefig(figname, dpi=400)
 
 
-def Show_Violin(sptFile, figname, key, h5data='matrix'):
-    adata = Load_spt_to_AnnData(sptFile, h5data)
+def Show_Violin(smdFile, figname, key, h5data='matrix'):
+    adata = Load_smd_to_AnnData(smdFile, h5data)
     adata.var_names_make_unique()
     fig, axs = plt.subplots(1, 1, figsize=(4, 3), constrained_layout=True)
     adata = Remove_mito_genes(adata)
@@ -389,11 +389,11 @@ def Show_Violin(sptFile, figname, key, h5data='matrix'):
     fig.savefig(figname, dpi=400)
 
 
-def Show_Umap(sptFile, figname, h5data='matrix', is_spatial=True, key='ground_truth', title=None, do_cluster=True, figsize=(6,5)):
+def Show_Umap(smdFile, figname, h5data='matrix', is_spatial=True, key='ground_truth', title=None, do_cluster=True, figsize=(6,5)):
     if is_spatial:
-        adata = Load_spt_to_AnnData(sptFile, h5data)
+        adata = Load_smd_to_AnnData(smdFile, h5data)
     else:
-        adata = Load_spt_sc_to_AnnData(sptFile, h5data)
+        adata = Load_smd_sc_to_AnnData(smdFile, h5data)
     if do_cluster:
         # adata = Remove_mito_genes(adata)
         # adata = Filter_genes(adata)
@@ -410,9 +410,35 @@ def Show_Umap(sptFile, figname, h5data='matrix', is_spatial=True, key='ground_tr
               handlelength=0.7)
     fig.savefig(figname, dpi=400)
 
+def Show_colored_Umap(smdFile, figname, h5data='SPCS_mat'):
+    adata = Load_smd_to_AnnData(smdFile, h5data)
+    adata = Remove_mito_genes(adata)
+    adata = Filter_genes(adata)
+    sc.pp.normalize_total(adata, inplace=True)
+    sc.pp.log1p(adata)
+    sc.pp.highly_variable_genes(adata, flavor='seurat', inplace=True)
+    sc.pp.pca(adata, n_comps=50, use_highly_variable=True, svd_solver='arpack')
+    sc.pp.neighbors(adata)
+    # use umap and leiden for clustering
+    sc.tl.umap(adata, n_components=3)
+    umap_color = adata.obsm['X_umap']
+    norm_color = (umap_color - np.nanmin(umap_color)) / (np.nanmax(umap_color) - np.nanmin(umap_color))
+    fig, axs = plt.subplots(1, 1, figsize=(3, 3), constrained_layout=True)
 
-def Show_Spatial_and_Umap(sptFile, h5data='matrix', key='BayesSpace'):
-    adata = Load_spt_to_AnnData(sptFile, h5data)
+    # axs[0].scatter(x=adata.obs['array_row'], y=adata.obs['array_col'], c=[], edgecolors='grey', alpha=0.8, marker='o', linewidths=0.8)
+    # axs[0].scatter(x=adata0.obs['array_row'], y=adata0.obs['array_col'], c=labels0, marker='o', alpha=0.7)
+    axs.scatter(x=adata.obs['array_col'], y=-adata.obs['array_row'], c=norm_color, marker='.')
+    axs.set_xticks(ticks=[])
+    axs.set_yticks(ticks=[])
+    axs.spines.top.set_visible(False)
+    axs.spines.bottom.set_visible(False)
+    axs.spines.left.set_visible(False)
+    axs.spines.right.set_visible(False)
+    fig.savefig(figname, dpi=400)
+
+
+def Show_Spatial_and_Umap(smdFile, h5data='matrix', key='BayesSpace'):
+    adata = Load_smd_to_AnnData(smdFile, h5data)
     adata = Remove_mito_genes(adata)
     adata = Filter_genes(adata)
     from clu.Cluster_leiden import Spatial_Cluster_Analysis
@@ -425,11 +451,11 @@ def Show_Spatial_and_Umap(sptFile, h5data='matrix', key='BayesSpace'):
     fig.show()
 
 
-def Show_Domain_and_Composition(sptFile, cell_type):
-    info = sptInfo(sptFile)
+def Show_Domain_and_Composition(smdFile, cell_type):
+    info = smdInfo(smdFile)
     # arrangement of map chain: ["cell-type", "F1-score", "domain", "dct", "dcv", "clu"]
     map_chain = info.get_map_chains(cell_type)
-    adata = Load_spt_to_AnnData(sptFile, map_chain['dct'])
+    adata = Load_smd_to_AnnData(smdFile, map_chain['dct'])
     adata = Remove_mito_genes(adata)
     adata = Filter_genes(adata)
     from clu.Cluster_leiden import Spatial_Cluster_Analysis
@@ -446,11 +472,11 @@ def Show_Domain_and_Composition(sptFile, cell_type):
     fig.show()
 
 
-def Show_bar_composition(sptFile, h5data, method="Cell2Location", subtype="leiden"):
-    info = sptInfo(sptFile)
+def Show_bar_composition(smdFile, h5data, method="Cell2Location", subtype="leiden"):
+    info = smdInfo(smdFile)
 
     dcv_mtds = info.get_dcv_methods(h5data)
-    adata = Load_spt_to_AnnData(sptFile, h5data, loadDeconv=True)
+    adata = Load_smd_to_AnnData(smdFile, h5data, loadDeconv=True)
     adata = adata[adata.obs['BayesSpace'] == 6]
     adata = Remove_mito_genes(adata)
     adata = Filter_genes(adata)
@@ -809,8 +835,8 @@ def Show_intersection_genes(adata_sp, adata_sc1, gene, folder, adata_sc2=None, c
         fig.savefig(figname, dpi=400)
 
 
-def Show_Heatmap(sptFile, figname, h5data='matrix', title=None):
-    adata = Load_spt_to_AnnData(sptFile, h5data)
+def Show_Heatmap(smdFile, figname, h5data='matrix', title=None):
+    adata = Load_smd_to_AnnData(smdFile, h5data)
 
     import seaborn as sns
     import scanpy as sc
@@ -823,11 +849,11 @@ def Show_Heatmap(sptFile, figname, h5data='matrix', title=None):
     fig.savefig(figname, dpi=400)
 
 
-def Show_marker_heatmap(sptFile, figname, h5data='scRNA_seq', title=None,is_spatial=False, ):
+def Show_marker_heatmap(smdFile, figname, h5data='scRNA_seq', title=None,is_spatial=False, ):
     if is_spatial:
-        adata = Load_spt_to_AnnData(sptFile, h5data)
+        adata = Load_smd_to_AnnData(smdFile, h5data)
     else:
-        adata = Load_spt_sc_to_AnnData(sptFile, h5data)
+        adata = Load_smd_sc_to_AnnData(smdFile, h5data)
         from clu.Cluster_leiden import Spatial_Cluster_Analysis
         adata = Spatial_Cluster_Analysis(adata)
         sc.tl.rank_genes_groups(adata, 'annotation', method='wilcoxon')
@@ -837,15 +863,15 @@ def Show_marker_heatmap(sptFile, figname, h5data='scRNA_seq', title=None,is_spat
 
 # downsampling comparison. this function draws a figure to compare cell expression patterns
 # between downsampling and VAE.
-def Show_DS_comparison(sptFile, figname,figsize=(3.5, 4.5)):
+def Show_DS_comparison(smdFile, figname,figsize=(3.5, 4.5)):
     plt.rcParams["font.sans-serif"] = ["Arial"]
     plt.rcParams["axes.unicode_minus"] = False
     plt.rcParams['font.size'] = 14
     from utils.stereoScope import Easy_Sample
     from clu.Cluster_leiden import Spatial_Cluster_Analysis
     from sklearn import metrics
-    scdata0 = Load_spt_sc_to_AnnData(sptFile, 'sc-ref-es')
-    scdata1 = Load_spt_sc_to_AnnData(sptFile, 'sc-ref')
+    scdata0 = Load_smd_sc_to_AnnData(smdFile, 'sc-ref-es')
+    scdata1 = Load_smd_sc_to_AnnData(smdFile, 'sc-ref')
     scdata0 = Spatial_Cluster_Analysis(scdata0)
     scdata1 = Spatial_Cluster_Analysis(scdata1)
     ARI0 = metrics.adjusted_rand_score(scdata0.obs['clusters'], scdata0.obs['annotation'])

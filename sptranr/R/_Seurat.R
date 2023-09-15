@@ -35,31 +35,31 @@ FindMarkers_Seurat <- function(seu, ident){
   return(de_markers)
 }
 
-Save_spt_from_Seurat.dcv <- function(sptFile, h5data, predictions.assay){
+Save_smd_from_Seurat.dcv <- function(smdFile, h5data, predictions.assay){
 
   results <- Matrix(t(predictions.assay@data[-dim(predictions.assay@data)[1],]))
   results <- as(results, "dgeMatrix")
   cell_type_names <- rownames(predictions.assay)
-  h5createGroup(sptFile, paste0(h5data, '/deconv/Seurat'))
+  h5createGroup(smdFile, paste0(h5data, '/deconv/Seurat'))
 
   # save 1d weights
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = results@x,
-                     sptloc = paste0(h5data, '/deconv/Seurat/weights'),
+                     smdloc = paste0(h5data, '/deconv/Seurat/weights'),
                      mode = 'double')
   # save shape
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = results@Dim,
-                     sptloc = paste0(h5data, '/deconv/Seurat/shape'),
+                     smdloc = paste0(h5data, '/deconv/Seurat/shape'),
                      mode = 'integer')
   # save dim names
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = rownames(results),
-                     sptloc = paste0(h5data, '/deconv/Seurat/barcodes'),
+                     smdloc = paste0(h5data, '/deconv/Seurat/barcodes'),
                      mode = 'character')
-  Create_spt_array1d(sptFile,
+  Create_smd_array1d(smdFile,
                      arr = colnames(results),
-                     sptloc = paste0(h5data, '/deconv/Seurat/cell_type'),
+                     smdloc = paste0(h5data, '/deconv/Seurat/cell_type'),
                      mode = 'character')
 }
 

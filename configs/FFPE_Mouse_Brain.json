@@ -13,6 +13,7 @@
   "name": "Visium_FFPE_Mouse_Brain",
   "filter_matrix": true,
   "sptFile": "h5ads/Visium_FFPE_Mouse_Brain.h5spt",
+  "smdFile": "h5ads/Visium_FFPE_Mouse_Brain.h5spt",
   "ground_truth": "cluster_labels.csv",
   "ground_name": "",
   "scDataPath": "data/scRNA-seq/Adult_Mouse_Brain",

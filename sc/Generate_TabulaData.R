@@ -8,7 +8,7 @@ source("sptranr/R/_scRNA-seq.R")
 
 # decoding params
 params <- fromJSON(file = "params.json")
-sptFile <- params$sptFile
+smdFile <- params$smdFile
 dataPath <- params$dataPath
 
 # read TabulaData
@@ -19,4 +19,4 @@ sce <- Load_TabulaData_to_SCE(TabulaType, TabulaData)
 
 sce <- Analysis_TabulaData(sce)
 
-Save_scRNAseq_to_spt(sptFile, sce)
+Save_scRNAseq_to_smd(smdFile, sce)
