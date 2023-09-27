@@ -35,13 +35,9 @@ def Check_Requirements():
         print("All requirements satisfied.")
 
 
-def Check_Softwares():
-    pass
-
-
 Check_Environments()
 Check_Requirements()
-Check_Softwares()
+
 print("Importing requirements...")
 import shutil
 from utils.io import *
