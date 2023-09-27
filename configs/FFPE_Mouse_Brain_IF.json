@@ -9,7 +9,6 @@
   "TabulaType": "",
   "TabulaData": "",
   "dataSpices": "Mouse",
-  "R_Scripts_Path": "R_utils",
   "R_library_Path": "sptranr/R",
   "name": "Visium_FFPE_Mouse_Brain_IF",
   "filter_matrix": true,

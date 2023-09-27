@@ -1,7 +1,8 @@
 import scanpy as sc
-import os,csv,re
+import csv,re
 import numpy as np
 import math
+import os, sys
 import pandas as pd
 import anndata as ad
 import matplotlib.pyplot as plt
@@ -13,12 +14,10 @@ import random
 import h5py as h5
 import json
 from pathlib import Path
-import os
-import sys
 import os.path as osp
 import datetime
 import re
-# import loompy as lp
+import loompy as lp
 from scipy.sparse import csc_matrix, csr_matrix
 from sklearn.metrics import mean_squared_error
 plt.rcParams['font.sans-serif'] = ['Arial']

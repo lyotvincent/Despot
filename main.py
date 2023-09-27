@@ -1,5 +1,24 @@
 import subprocess
+import os
+import sys
 import pkg_resources
+
+
+def Check_Environments():
+    print("Checking Python environments...")
+    print("Python path: {}".format(sys.executable))
+    print("Python version: {}".format(sys.version))
+    print("Python venv: {}".format(sys.prefix))
+    print("Working Dictionary: {}".format(os.path.dirname(os.path.abspath(__file__))))
+    # check R environment
+    try:
+        print("Checking R environments...")
+        os.system("R --version")
+    except OSError:
+        print("R ecosystem remains unsolved.")
+        sys.exit(-1)
+
+
 def Check_Requirements():
     print("Checking basical requirements...")
     required = {"anndata", "h5py","matplotlib", "numpy", "pandas", "scanpy", "scipy", "torch"}
@@ -9,19 +28,27 @@ def Check_Requirements():
     if missing:
         print("Missing requirements:{}".format(missing))
         python = sys.executable
+        print("Installing missing requirements...")
         subprocess.check_call([python, '-m', 'pip', 'install', *missing], stdout=subprocess.DEVNULL)
         print("Missing requirements installed.")
     else:
-        print("Done.")
+        print("All requirements satisfied.")
+
+
+def Check_Softwares():
+    pass
+
+
+Check_Environments()
 Check_Requirements()
+Check_Softwares()
 print("Importing requirements...")
-import os
 import shutil
 from utils.io import *
 from utils.api import Create_h5datas, Despot_Decont, Despot_Cluster, Despot_Deconv
 from utils.geo import Despot_Find_bestGroup, Despot_group_correlation,\
     Show_self_correlation, Show_bash_best_group, Gen_venn
-print("Done.")
+
 
 def SMD_init(smdFile: str, force: bool = False):
     # whether the file exists

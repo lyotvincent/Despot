@@ -8,7 +8,6 @@
   "TabulaType": "",
   "TabulaData": "",
   "dataSpices": "",
-  "R_Scripts_Path": "R_utils",
   "R_library_Path": "sptranr/R",
   "name": "FFPE_Mouse_Kidney_DropSeq",
   "filter_matrix": true,

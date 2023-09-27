@@ -8,7 +8,6 @@
   "imgName": "GSM3036911_PDAC-A-ST1-HE.jpg.gz",
   "tempdir": "h5ads",
   "dataSpices": "Human",
-  "R_Scripts_Path": "R_utils",
   "R_library_Path": "sptranr/R",
   "name": "PDAC-A",
   "filter_matrix": true,

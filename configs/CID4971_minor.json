@@ -8,7 +8,6 @@
   "TabulaType": "",
   "TabulaData": "",
   "dataSpices": "Human",
-  "R_Scripts_Path": "R_utils",
   "R_library_Path": "sptranr/R",
   "name": "CID4971_TNBC_minor",
   "filter_matrix": true,

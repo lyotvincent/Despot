@@ -8,7 +8,6 @@
   "TabulaType": "",
   "TabulaData": "",
   "dataSpices": "Mouse",
-  "R_Scripts_Path": "R_utils",
   "R_library_Path": "sptranr/R",
   "name": "V1_Adult_Mouse_Brain",
   "filter_matrix": true,

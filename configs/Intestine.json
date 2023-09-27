@@ -9,7 +9,6 @@
   "TabulaType": "FACS",
   "TabulaData": "Large_Intestine",
   "dataSpices": "Mouse",
-  "R_Scripts_Path": "R_utils",
   "R_library_Path": "sptranr/R",
   "name": "colon_d0",
   "filter_matrix": true,
