@@ -2,7 +2,7 @@
 source("sptranr/R/_Loading.R")
 
 Check_Load_BiocPackages("SpotClean")
-library(rhdf5)
+Check_Load_BiocPackages("rhdf5")
 
 Load_10Xh5_to_SpotClean <- function(dataPath, smdFile){
   raw_path_h5 <- paste0(dataPath, "/raw_feature_bc_matrix.h5")

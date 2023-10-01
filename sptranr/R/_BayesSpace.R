@@ -1,5 +1,5 @@
-library(BayesSpace)
-source("sptranr/R/transpar.R")
+source("sptranr/R/_Loading.R")
+Check_Load_BiocPackages("BayesSpace")
 set.seed(1314)
 
 Cluster_BayesSpace <- function(Bayes){

@@ -1,4 +1,5 @@
-library(spacexr)
+source("sptranr/R/_Loading.R")
+Check_Load_GithubPackages("spacexr", "https://github.com/dmcable/spacexr")
 
 GenerateRef_spacexr <- function(sce){
   counts <- sce@assays@data$counts

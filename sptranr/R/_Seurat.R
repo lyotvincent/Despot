@@ -1,8 +1,9 @@
-library(Seurat)
-library(SeuratObject)
-library(cowplot)
-library(Matrix)
-library(Rcpp)
+source("sptranr/R/_Loading.R")
+Check_Load_InstallPackages("Seurat")
+Check_Load_InstallPackages("SeuratObject")
+Check_Load_InstallPackages("cowplot")
+Check_Load_InstallPackages("Matrix")
+Check_Load_InstallPackages("Rcpp")
 
 Preprocess_Seurat <- function(seu, assay = "Spatial"){
   seu <- SCTransform(seu, assay = assay,

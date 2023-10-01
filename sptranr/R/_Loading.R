@@ -18,3 +18,10 @@ Check_Load_GithubPackages <- function(pkgName, URL){
     library(pkgName, character.only = TRUE)
   }
 }
+
+Check_Load_InstallPackages <- function(pkgName){
+  if(!require(pkgName, character.only = TRUE)){
+    install.packages(pkgName, quiet = TRUE)
+    library(pkgName, character.only = TRUE)
+  }
+}
