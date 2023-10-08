@@ -1,7 +1,7 @@
 # checking whether SpotClean is in the library
 source("sptranr/R/_Loading.R")
 
-Check_Load_BiocPackages("SpotClean")
+Check_Load_GithubPackages("SpotClean", "zijianni/SpotClean@4fd969c")
 Check_Load_BiocPackages("rhdf5")
 
 Load_10Xh5_to_SpotClean <- function(dataPath, smdFile){

@@ -1,3 +1,4 @@
+import json
 import subprocess
 import os
 import sys
@@ -69,7 +70,23 @@ if __name__ == "__main__":
             smdFile = cfg['smdFile']
             name = cfg['name']
             platform = cfg['platform']
-            pythonPath = cfg["pythonPath"]
+
+            # set python path
+            pythonPath = sys.executable
+            cfg["pythonPath"] = pythonPath
+
+            # set R lib path
+            cfg["R_library_Path"] = 'sptranr/R'
+
+            # set working dictionary
+            cfg["working_dir"] = os.path.dirname(os.path.abspath(__file__))
+
+            # set venv
+            cfg["venv"] = sys.prefix.split('/')[-1]
+            cfg_json = json.dumps(cfg)
+
+            # set running configs
+            Save_json_configs(cfg, "params.json")
             Save_smd_from_configs(smdFile, items=cfg)
             # need hires?
             hires = cfg['load_hires']

@@ -1,3 +1,5 @@
+import json
+
 from utils.common import *
 
 
@@ -245,6 +247,12 @@ def Load_json_configs(path: str, encoding: str = 'utf-8'):
     with open(path, 'r', encoding=encoding) as fp:
         json_data = json.load(fp)
     return json_data
+
+
+def Save_json_configs(cfg: dict, path: str, encoding: str = 'utf-8'):
+    with open(path, 'w', encoding=encoding) as fp:
+        fp.write(json.dumps(cfg))
+    print("json configs are written to {}".format(path))
 
 
 # convert bytes to str in array

@@ -13,7 +13,7 @@ Despot is implemented by Python 3.9.7 and R 4.1.3 in Ubuntu 20.04.
 First we create a new virtual environment, and activate it. Then we install the basic python packages in `requirements.txt`
 
 ```shell
-conda create Despot
+conda create --name Despot python=3.9
 conda activate Despot
 pip install -r requirements.txt
 ```
@@ -22,9 +22,9 @@ pip install -r requirements.txt
 
 Run this code in R Console for Despot basic requirements
 
-```
-install.packages("BiocManager")
-BiocManager::install(c("SingleCellExperiment", "rhdf5"))
+```R
+install.packages(c("BiocManager", "Matrix","stringr"))
+BiocManager::install(c("rhdf5", "png", "rjson","data.table","SingleCellExperiment"))
 ```
 
 ## Usage
@@ -43,13 +43,10 @@ In default, we run the configures in `/configs`. Users can set their own configs
 
 ```json
 {
-  "working_dir": "path/to/your/working/dictionary",
-  "pythonPath": "path/to/your/python/executor",
   "dataPath": "path/to/your/SRT data/input",
   "imgPath": "path/to/your/image/input under dataPath",
   "platform": "10X_Visium",  /*10X_Visium, ST, Slide-seq*/	
   "dataSpices": "Human",	/*Human, Mice*/
-  "R_library_Path": "sptranr/R",
   "name": "your_sample_name",
   "filter_matrix": true,  /*Whether the matrix is filtered*/
   "smdFile": "path/to/output/smdFiles",
@@ -62,7 +59,6 @@ In default, we run the configures in `/configs`. Users can set their own configs
   "scMatrix": "count_matrix_sparse.mtx",
   "scGroundTruth": "metadata.csv",
   "scGroundName": "celltype_minor",
-  "load_lowres": true,
   "load_hires": true,
   "load_fullres": false,
   "fullres_path": "path/to/your/fullres_datapath",
