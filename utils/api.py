@@ -157,9 +157,9 @@ def Pip_decont(smdFile, cfg, method='none', force=False, ):
     elif method == 'SPROD':
         print("Decontamination method: SPROD.")
         from dct.Decont_SPROD import sprod_pp, sprod_run, sprod_save
-        sprod_pp(smdFile, tempdir='h5ads/temps')
-        sprod_run(sprod_dir='h5ads/temps', out_dir='h5ads/temp_result', pythonPath=cfg['pythonPath'])
-        sprod_save(smdFile, out_dir='h5ads/temp_result')
+        sprod_pp(smdFile, tempdir='temps')
+        sprod_run(sprod_dir='temps', out_dir='temp_result', pythonPath=cfg['pythonPath'])
+        sprod_save(smdFile, out_dir='temp_result')
     elif method == 'none':
         print("Decontamination method: none.")
         return

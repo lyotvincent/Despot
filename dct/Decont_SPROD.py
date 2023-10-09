@@ -5,15 +5,15 @@ import pandas as pd
 from utils.io import Load_smd_to_AnnData, Save_tsv_from_spData, Save_meta_from_spData, smdInfo, Save_smd_from_txt
 
 
-def Handle_Dependencies():
+def sprod_install():
     print("Dependencies will be installed when Using SPROD for the first time.")
     # handle python dependencies
+    os.system("git clone https://github.com/yunguan-wang/SPROD \n"
+              "pip install SPROD \n"
+              "python SPROD/test_examples.py")
 
-    # handle R dependencies
-    pass
 
-
-def sprod_pp(smdFile, tempdir='h5ads/temps'):
+def sprod_pp(smdFile, tempdir='temps'):
     smdinfo = smdInfo(smdFile)
     adata = Load_smd_to_AnnData(smdFile)
     print("Saving Count data to {0}.".format(tempdir))

@@ -14,7 +14,7 @@
   "scType": "txt",
   "scBarcodes": "",
   "scFeatures": "",
-  "scMatrix": "PDAC-A-indrop-filtered-expMat.txt",
+  "scMatrix": "PDAC-A-indrop-filtered-expMat.txt.gz",
   "scGroundTruth": "PDAC-A-indrop-annotation.tsv",
   "scGroundName": "free_annotation",
   "load_hires": true,

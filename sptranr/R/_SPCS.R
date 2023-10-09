@@ -1,9 +1,10 @@
-require("Matrix")
-require("rsvd")
-require("factoextra")
-require("foreach")
-require("dplyr")
-require("doParallel")
+source("sptranr/R/_Loading.R")
+Check_Load_BiocPackages("Matrix")
+Check_Load_BiocPackages("rsvd")
+Check_Load_BiocPackages("factoextra")
+Check_Load_BiocPackages("foreach")
+Check_Load_BiocPackages("dplyr")
+Check_Load_BiocPackages("doParallel")
 
 #Pattern neighbors
 

@@ -63,7 +63,7 @@ def SMD_init(smdFile: str, force: bool = False):
 if __name__ == "__main__":
     cfg_list = os.listdir('configs')
     for cfg_name in cfg_list:
-        if cfg_name == 'Intestine.json':
+        if cfg_name == 'PDAC-A.json':
             cfg_path = 'configs/' + cfg_name
             shutil.copy(cfg_path, dst="params.json")
             cfg = Load_json_configs("params.json")
@@ -96,7 +96,7 @@ if __name__ == "__main__":
             print("platform:{0}".format(platform))
             print("Using hires img: {0}".format(hires))
             print("=========Despot Start===========")
-            SMD_init(smdFile=smdFile)
+            SMD_init(smdFile=smdFile, force=True)
             Despot_Decont(smdFile, cfg)
             Despot_Cluster(smdFile, cfg)
             Despot_Deconv(smdFile, cfg)

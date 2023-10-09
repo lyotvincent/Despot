@@ -8,7 +8,7 @@ Spot-based spatial resolved transcriptomic (SRT) technologies facilitate the elu
 
 Despot is implemented by Python 3.9.7 and R 4.1.3 in Ubuntu 20.04. 
 
-**For Python 3.9.7:**
+**For Python 3.9:**
 
 First we create a new virtual environment, and activate it. Then we install the basic python packages in `requirements.txt`
 
@@ -24,7 +24,7 @@ Run this code in R Console for Despot basic requirements
 
 ```R
 install.packages(c("BiocManager", "Matrix","stringr"))
-BiocManager::install(c("rhdf5", "png", "rjson","data.table","SingleCellExperiment"))
+BiocManager::install(c("rhdf5", "png", "rjson","data.table","SingleCellExperiment", "optparse", "distances", "gtools", "umap", "dplyr", "mvtnorm"))
 ```
 
 ## Usage
