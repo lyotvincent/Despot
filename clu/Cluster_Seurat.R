@@ -1,8 +1,3 @@
-# Title     : Using Seurat for clustering
-# Objective : Pip
-# Created by: rzh
-# Created on: 2022/3/10
-
 source("sptranr/R/transpar.R")
 source("sptranr/R/_Seurat.R")
 

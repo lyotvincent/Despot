@@ -1,5 +1,5 @@
 source("sptranr/R/_Loading.R")
-Check_Load_InstallPackages("Giotto")
+Check_Load_GithubPackages("Giotto", "RubD/Giotto")
 
 Preprocess_Giotto <- function(gobj){
   Giotto::filterCombinations(gobj,

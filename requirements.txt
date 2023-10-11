@@ -29,3 +29,7 @@ geopandas~=0.11.0
 pillow~=9.0.1
 numba~=0.55.1
 rpy2~=3.5.1
+opencv_python==4.8.0.74
+umap-learn==0.5.4
+tifffile==2023.9.26
+loompy==3.0.7

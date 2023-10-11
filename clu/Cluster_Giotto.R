@@ -1,7 +1,3 @@
-# Title     : Using gobjrat for clustering
-# Objective : Pip
-# Created by: rzh
-# Created on: 2022/3/25
 
 source("sptranr/R/transpar.R")
 source("sptranr/R/_Giotto.R")

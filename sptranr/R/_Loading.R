@@ -14,7 +14,7 @@ Check_Load_GithubPackages <- function(pkgName, URL){
     if(!require("devtools", quietly = TRUE))
       install.packages("devtools")
       library("devtools")
-    install_github(url=URL, upgrade = "default")
+    install_github(URL, upgrade = "default")
     library(pkgName, character.only = TRUE)
   }
 }

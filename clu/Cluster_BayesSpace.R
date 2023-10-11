@@ -13,14 +13,14 @@ if(is.null(platform)){
 }
 
 for(decont in params$Decontamination){
-  h5data <- Create_spt_h5data(decont)
+  h5data <- Create_smd_h5data(decont)
   if(platform != "10X_Visium" && h5data == "SpotClean_mat"){
     message("SpotClean only Support 10X Visium data, skip it.")
     next
   }
-  Bayes <- Load_spt_to_SCE(smdFile, h5data = h5data)
+  Bayes <- Load_smd_to_SCE(smdFile, h5data = h5data)
   Bayes <- Cluster_BayesSpace(Bayes)
-  Save_spt_from_BayesSpace(smdFile, Bayes, save.enhanced = F, h5data = h5data)
+  Save_smd_from_BayesSpace(smdFile, Bayes, save.enhanced = F, h5data = h5data)
 }
 
 

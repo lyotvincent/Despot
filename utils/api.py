@@ -62,7 +62,7 @@ def Create_h5datas(cfg):
     h5datas = []
     # whether you need Decontamination
     Decont = cfg['Decontamination']
-    smdFile = cfg['sptFile']
+    smdFile = cfg['smdFile']
     if type(Decont) != list:
         Decont = [Decont]
     with h5.File(smdFile, 'r') as f:
@@ -156,7 +156,8 @@ def Pip_decont(smdFile, cfg, method='none', force=False, ):
         os.system("Rscript dct/Decont_SPCS.R")
     elif method == 'SPROD':
         print("Decontamination method: SPROD.")
-        from dct.Decont_SPROD import sprod_pp, sprod_run, sprod_save
+        from dct.Decont_SPROD import sprod_install, sprod_pp, sprod_run, sprod_save
+        sprod_install()
         sprod_pp(smdFile, tempdir='temps')
         sprod_run(sprod_dir='temps', out_dir='temp_result', pythonPath=cfg['pythonPath'])
         sprod_save(smdFile, out_dir='temp_result')
@@ -186,6 +187,8 @@ def Pip_cluster(smdFile, cfg, h5data, method='leiden', force=False, tif=None):
         Save_smd_from_leiden(smdFile, adata, h5data)
         # adata = Differential_Expression_Analysis(adata)
     elif method == 'SpaGCN':
+        from clu.Cluster_SpaGCN import spagcn_install
+        spagcn_install()
         from clu.Cluster_SpaGCN import Spatial_Cluster_Analysis_SpaGCN
         adata = Load_smd_to_AnnData(smdFile, h5data)
         adata = Spatial_Cluster_Analysis_SpaGCN(adata)
